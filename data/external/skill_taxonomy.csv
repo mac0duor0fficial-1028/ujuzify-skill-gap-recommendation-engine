@@ -1,0 +1,71 @@
+skill_id,canonical_name,display_name,category,aliases
+SK01,python,Python,programming,python programming|python3|python 3
+SK02,sql,SQL,programming,structured query language|t-sql|tsql|sql queries
+SK03,r,R,programming,r programming|r language|rstudio
+SK04,java,Java,programming,java programming|core java
+SK05,javascript,JavaScript,programming,js|node.js|nodejs|javascript es6
+SK06,typescript,TypeScript,programming,typescript programming
+SK07,bash,Bash,programming,shell scripting|bash scripting|shell script|unix shell
+SK08,go,Go,programming,golang|go programming
+SK09,excel,Excel,analytics_bi,ms excel|microsoft excel|advanced excel
+SK10,power_bi,Power BI,analytics_bi,microsoft power bi|powerbi|ms power bi
+SK11,tableau,Tableau,analytics_bi,tableau desktop|tableau public
+SK12,looker_studio,Looker Studio,analytics_bi,google data studio|data studio|google looker studio
+SK13,dax,DAX,analytics_bi,data analysis expressions
+SK14,power_query,Power Query,analytics_bi,power query editor
+SK15,statistics,Statistics,analytics_bi,statistical analysis|statistical methods|descriptive statistics|inferential statistics|hypothesis testing
+SK16,data_visualization,Data Visualization,analytics_bi,data visualisation|data viz|dashboarding|dashboard development
+SK17,data_cleaning,Data Cleaning,analytics_bi,data cleansing|data wrangling|data preparation|data preprocessing
+SK18,machine_learning,Machine Learning,data_science_ml,ml|predictive modeling|predictive modelling|supervised learning
+SK19,deep_learning,Deep Learning,data_science_ml,neural networks|deep neural networks
+SK20,nlp,NLP,data_science_ml,natural language processing|text mining|text analytics
+SK21,pandas,Pandas,data_science_ml,pandas library|python pandas
+SK22,numpy,NumPy,data_science_ml,numerical python|numpy library
+SK23,scikit_learn,scikit-learn,data_science_ml,sklearn|scikit learn
+SK24,tensorflow,TensorFlow,data_science_ml,tensor flow|keras
+SK25,pytorch,PyTorch,data_science_ml,torch|py torch
+SK26,feature_engineering,Feature Engineering,data_science_ml,feature selection|feature extraction|feature creation
+SK27,model_deployment,Model Deployment,data_science_ml,ml deployment|model serving|deploying models|mlops
+SK28,ab_testing,A/B Testing,data_science_ml,a b testing|split testing|experiment design
+SK29,postgresql,PostgreSQL,data_engineering,postgres|psql|postgre sql
+SK30,mysql,MySQL,data_engineering,my sql|mariadb
+SK31,mongodb,MongoDB,data_engineering,mongo|mongo db|nosql
+SK32,data_modeling,Data Modeling,data_engineering,data modelling|database design|dimensional modeling|schema design
+SK33,etl,ETL,data_engineering,extract transform load|elt|data pipeline|data pipelines|etl pipelines
+SK34,airflow,Airflow,data_engineering,apache airflow
+SK35,spark,Spark,data_engineering,apache spark|pyspark
+SK36,kafka,Kafka,data_engineering,apache kafka|event streaming
+SK37,data_warehousing,Data Warehousing,data_engineering,data warehouse|redshift|bigquery|snowflake
+SK38,dbt,dbt,data_engineering,data build tool
+SK39,aws,AWS,cloud_infrastructure,amazon web services|amazon aws|ec2|amazon s3
+SK40,azure,Azure,cloud_infrastructure,microsoft azure|azure cloud
+SK41,gcp,GCP,cloud_infrastructure,google cloud|google cloud platform
+SK42,linux,Linux,cloud_infrastructure,unix|ubuntu|linux administration|rhel
+SK43,docker,Docker,cloud_infrastructure,containerization|containers|docker compose|dockerfile
+SK44,kubernetes,Kubernetes,cloud_infrastructure,k8s|container orchestration|eks|aks
+SK45,terraform,Terraform,cloud_infrastructure,infrastructure as code|iac|hashicorp terraform
+SK46,ci_cd,CI/CD,cloud_infrastructure,continuous integration|continuous delivery|continuous deployment|github actions|jenkins|gitlab ci
+SK47,networking,Networking,cloud_infrastructure,computer networking|tcp/ip|network administration|dns
+SK48,monitoring,Monitoring,cloud_infrastructure,observability|prometheus|grafana|system monitoring
+SK49,git,Git,software_engineering,github|gitlab|version control|source control
+SK50,rest_apis,REST APIs,software_engineering,rest api|restful apis|restful api|api development|web apis
+SK51,fastapi,FastAPI,software_engineering,fast api
+SK52,django,Django,software_engineering,django framework|django rest framework
+SK53,flask,Flask,software_engineering,flask framework
+SK54,react,React,software_engineering,reactjs|react js|react.js
+SK55,software_testing,Software Testing,software_engineering,unit testing|pytest|test automation|qa testing
+SK56,object_oriented_programming,Object-Oriented Programming,software_engineering,oop|object oriented programming|object oriented design
+SK57,cybersecurity_fundamentals,Cybersecurity Fundamentals,security,cybersecurity|cyber security|information security|infosec|security fundamentals
+SK58,network_security,Network Security,security,firewall|firewalls|ids/ips|intrusion detection|vpn
+SK59,vulnerability_assessment,Vulnerability Assessment,security,vulnerability management|vulnerability scanning|nessus
+SK60,penetration_testing,Penetration Testing,security,pentesting|pen testing|pentest|ethical hacking
+SK61,incident_response,Incident Response,security,security incident response|incident handling|soc operations
+SK62,siem,SIEM,security,splunk|qradar|security information and event management|log analysis
+SK63,identity_access_management,Identity and Access Management,security,iam|access control|identity management
+SK64,communication,Communication,professional,communication skills|verbal communication|written communication|presentation skills
+SK65,problem_solving,Problem Solving,professional,analytical thinking|critical thinking|troubleshooting|analytical skills
+SK66,project_management,Project Management,professional,project coordination|stakeholder management|pmp
+SK67,agile,Agile,professional,scrum|kanban|agile methodologies|agile development
+SK68,technical_writing,Technical Writing,professional,documentation|technical documentation|report writing
+SK69,teamwork,Teamwork,professional,collaboration|team player|collaborative work|cross functional collaboration
+SK70,business_analysis,Business Analysis,professional,requirements gathering|business requirements|requirements analysis|business analyst skills

@@ -1,0 +1,10 @@
+career_id,career_name,career_family,description
+CA01,Data Analyst,Data,Collects and cleans data and builds reports and analyses that answer business questions using SQL and spreadsheets.
+CA02,Business Intelligence Analyst,Data,Designs dashboards and data models that give decision makers recurring visibility into business performance.
+CA03,Data Engineer,Data,Builds and maintains the pipelines and storage systems that make reliable data available for analysis.
+CA04,Data Scientist,Data,Applies statistics and machine learning to extract insight and build predictive models from data.
+CA05,Machine Learning Engineer,Data,Productionizes machine learning models and builds the infrastructure to train serve and monitor them.
+CA06,Cloud Engineer,Cloud / Infrastructure,Designs deploys and operates cloud infrastructure and services.
+CA07,DevOps Engineer,Cloud / Infrastructure,Automates build test and deployment workflows and keeps systems reliable and observable.
+CA08,Software Engineer,Software,Designs builds and tests software applications and services.
+CA09,Cybersecurity Analyst,Security,Monitors systems for threats assesses vulnerabilities and responds to security incidents.
