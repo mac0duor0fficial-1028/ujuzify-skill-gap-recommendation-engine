@@ -1,0 +1,76 @@
+{
+  "registry_version": "1.0",
+  "notes": "Every data source must be registered here before it can be ingested. A source may only run when enabled=true AND terms_reviewed=true. Record the terms URL and your decision on redistribution; do not commit raw data from a source unless redistribution_allowed is true.",
+  "sources": [
+    {
+      "source_id": "sample_fixture",
+      "name": "Synthetic sample postings (offline fixture)",
+      "type": "fixture",
+      "enabled": true,
+      "terms_reviewed": true,
+      "terms_url": null,
+      "is_synthetic": true,
+      "redistribution_allowed": true,
+      "country": "KE",
+      "config": {
+        "path": "data/external/sample_jobs_synthetic.json",
+        "field_map": {
+          "source_job_id": "id",
+          "title": "title",
+          "company": "company_name",
+          "location": "location",
+          "description": "description_html",
+          "employment_type": "employment_type",
+          "experience_required": "experience",
+          "education_required": "education",
+          "date_posted": "posted_at",
+          "source_url": "url"
+        }
+      },
+      "notes": "Hand-generated, clearly fictional postings used to exercise the pipeline and tests offline. NOT market evidence: any statistic computed from this source says nothing about the Kenyan labour market."
+    },
+    {
+      "source_id": "job_opportunities_api",
+      "name": "Job Opportunities API (placeholder, not yet configured)",
+      "type": "http_json",
+      "enabled": false,
+      "terms_reviewed": false,
+      "terms_url": null,
+      "is_synthetic": false,
+      "redistribution_allowed": false,
+      "country": "KE",
+      "config": {
+        "base_url_env": "JOB_API_BASE_URL",
+        "api_key_env": "JOB_API_KEY",
+        "auth_header": "Authorization",
+        "auth_scheme": "Bearer",
+        "path": "/jobs",
+        "records_path": "results",
+        "params": {},
+        "pagination": {
+          "page_param": "page",
+          "size_param": "limit",
+          "page_size": 50,
+          "start_page": 1,
+          "max_pages": 20
+        },
+        "min_interval_s": 1.0,
+        "timeout_s": 30,
+        "max_retries": 3,
+        "field_map": {
+          "source_job_id": "id",
+          "title": "title",
+          "company": "company.name",
+          "location": "location",
+          "description": "description",
+          "employment_type": "employment_type",
+          "experience_required": "experience",
+          "education_required": "education",
+          "date_posted": "posted_at",
+          "source_url": "url"
+        }
+      },
+      "notes": "TEMPLATE. The path, auth scheme, pagination parameters and field_map are placeholders that must be checked against the provider's API documentation. To activate: set JOB_API_BASE_URL and JOB_API_KEY in .env, fill in terms_url, read the provider's terms, then set terms_reviewed=true and enabled=true."
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+career_id,title_alias
+CA01,data analyst
+CA01,junior data analyst
+CA01,business data analyst
+CA01,data analytics associate
+CA01,reporting analyst
+CA02,business intelligence analyst
+CA02,business intelligence developer
+CA02,bi analyst
+CA02,bi developer
+CA02,power bi developer
+CA02,power bi analyst
+CA03,data engineer
+CA03,big data engineer
+CA03,etl developer
+CA03,data pipeline engineer
+CA03,analytics engineer
+CA04,data scientist
+CA04,junior data scientist
+CA04,data science associate
+CA05,machine learning engineer
+CA05,ml engineer
+CA05,mlops engineer
+CA05,ai ml engineer
+CA06,cloud engineer
+CA06,cloud administrator
+CA06,cloud support engineer
+CA06,cloud infrastructure engineer
+CA06,aws engineer
+CA06,azure engineer
+CA07,devops engineer
+CA07,site reliability engineer
+CA07,sre
+CA07,platform engineer
+CA07,devsecops engineer
+CA07,release engineer
+CA08,software engineer
+CA08,software developer
+CA08,backend developer
+CA08,backend engineer
+CA08,full stack developer
+CA08,full stack engineer
+CA08,frontend developer
+CA08,front end developer
+CA08,web developer
+CA08,application developer
+CA08,mobile app developer
+CA09,cybersecurity analyst
+CA09,cyber security analyst
+CA09,security analyst
+CA09,information security analyst
+CA09,infosec analyst
+CA09,soc analyst
+CA09,security operations analyst
+CA09,penetration tester
