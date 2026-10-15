@@ -1,0 +1,47 @@
+doc_id,case_tag,text,skills
+C001,list,"Statistical software (SPSS, Stata, R) for survey analysis.",r
+C002,list,Comfortable working across Python/R for modelling.,python|r
+C003,r_neg,Report R-squared and p-values to the steering committee.,
+C004,r_neg,Teaching assistant for Grade R pupils.,
+C005,go,Go (Golang) experience is an added advantage.,go
+C006,alias,Experience with Apache Kafka or RabbitMQ message brokers.,kafka
+C007,alias,Working knowledge of SQL Server and T-SQL stored procedures.,sql
+C008,alias,"Microsoft Office Suite (Word, Excel, PowerPoint).",excel
+C009,excel,"Excel, Word and Outlook proficiency.",excel
+C010,excel_neg,Excel in customer service and build lasting client relationships.,
+C011,excel,Prepare monthly reports in an Excel spreadsheet.,excel
+C012,network_neg,Networking events and relationship building with donors.,
+C013,network,Configure Cisco networking equipment across branch offices.,networking
+C014,monitoring_neg,Monitoring & Evaluation Officer for a youth livelihoods project.,
+C015,monitoring,Monitoring of network performance and server uptime.,monitoring
+C016,spark,Experience with Apache Spark Streaming.,spark
+C017,react_neg,React to customer incidents promptly and professionally.,
+C018,react_neg,Must be able to react under pressure in a busy clinic.,
+C019,react,Frontend work in React and Vue.,react
+C020,agile_neg,An agile mindset and a can-do attitude.,
+C021,agile,Comfortable with Agile ways of working.,agile
+C022,docs,Create user documentation and training guides.,technical_writing
+C023,docs_neg,Verify shipping documentation and invoices before release.,
+C024,containers,Hands-on with Docker containers in production.,docker
+C025,containers_neg,Experience with container terminal operations at Kenya Ports Authority.,
+C026,torch,Build models with Torch and TensorFlow.,pytorch|tensorflow
+C027,negation,No prior experience with Java is needed; we will train you.,
+C028,alias,Experience with MySQL or equivalent relational databases.,mysql
+C029,alias,SOC analyst with Splunk and incident handling experience.,siem|incident_response
+C030,alias,Manage code on GitHub and automate with GitHub Actions.,git|ci_cd
+C031,format,"Requirements:
+- Python
+- SQL (must have)
+- Docker (nice to have)",python|sql|docker
+C032,alias,Scikit-learn and Tensor-flow for predictive modelling.,scikit_learn|tensorflow|machine_learning
+C033,casing,POWER BI and PYTHON are required.,power_bi|python
+C034,stem,Build Dockerized microservices.,docker
+C035,alias,Python-based automation tools.,python
+C036,alias,Statistical analysis of survey data using SPSS.,statistics
+C037,alias,Deploy machine learning models to production (MLOps).,machine_learning|model_deployment
+C038,alias,Cloud platforms (AWS/GCP) and Kubernetes (EKS/AKS).,aws|gcp|kubernetes
+C039,alias,Provision EC2 instances with Terraform.,aws|terraform
+C040,stem,Penetration tester holding OSCP certification.,penetration_testing
+C041,alias,Experience with Python 3.x and unit testing.,python|software_testing
+C042,none,Interpersonal skills and a valid driving licence are required.,
+C043,none,Jira and Confluence experience.,

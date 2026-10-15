@@ -102,22 +102,32 @@ class SkillDictionary:
         sid = self._forms.get(normalize(term))
         return self.skills[sid] if sid else None
 
-    def scan(self, text: str) -> list[SkillMatch]:
-        """Longest-phrase dictionary matches in free text; one match per skill, in order."""
-        toks = _tokens(text)
-        found: dict[str, SkillMatch] = {}
+    def match_tokens(self, toks: list[str]) -> list[tuple[int, int, str]]:
+        """All longest-phrase matches over normalized tokens as (start, end_exclusive, skill_id).
+
+        Matches do not overlap and a skill may appear more than once. Bare 'r' and 'go'
+        are never returned (see AMBIGUOUS_BARE_FORMS).
+        """
+        out: list[tuple[int, int, str]] = []
         i = 0
         while i < len(toks):
             for n in range(min(self._max_len, len(toks) - i), 0, -1):
-                key = tuple(toks[i:i + n])
-                sid = self._scan_index.get(key)
+                sid = self._scan_index.get(tuple(toks[i:i + n]))
                 if sid:
-                    if sid not in found:
-                        found[sid] = SkillMatch(sid, self.skills[sid].canonical_name, " ".join(key))
+                    out.append((i, i + n, sid))
                     i += n
                     break
             else:
                 i += 1
+        return out
+
+    def scan(self, text: str) -> list[SkillMatch]:
+        """Longest-phrase dictionary matches in free text; one match per skill, in order."""
+        toks = _tokens(text)
+        found: dict[str, SkillMatch] = {}
+        for a, b, sid in self.match_tokens(toks):
+            if sid not in found:
+                found[sid] = SkillMatch(sid, self.skills[sid].canonical_name, " ".join(toks[a:b]))
         return list(found.values())
 
     def skill_ids_in(self, text: str) -> list[str]:
@@ -157,24 +167,31 @@ class CareerTaxonomy:
             aliases = [(r["career_id"], r["title_alias"]) for r in csv.DictReader(fh)]
         return cls(careers, aliases)
 
-    def match_title(self, title: str) -> Career | None:
-        """Map a raw job title to one of the nine careers, or None.
+    def match_title_with_alias(self, title: str) -> tuple[Career, str] | None:
+        """Like match_title, but also returns the (normalized) alias that matched.
 
         The longest alias phrase found in the title wins. If two different careers tie
         on length the title is ambiguous and None is returned (no guessing).
         """
         toks = _tokens(title)
         best_len = 0
-        best: set[str] = set()
+        best: dict[str, str] = {}  # career_id -> matched alias
         for i in range(len(toks)):
             for n in range(min(self._max_len, len(toks) - i), 0, -1):
-                cid = self._alias_index.get(tuple(toks[i:i + n]))
+                key = tuple(toks[i:i + n])
+                cid = self._alias_index.get(key)
                 if cid:
                     if n > best_len:
-                        best_len, best = n, {cid}
+                        best_len, best = n, {cid: " ".join(key)}
                     elif n == best_len:
-                        best.add(cid)
+                        best.setdefault(cid, " ".join(key))
                     break
         if len(best) == 1:
-            return self.careers[next(iter(best))]
+            cid, alias = next(iter(best.items()))
+            return self.careers[cid], alias
         return None
+
+    def match_title(self, title: str) -> Career | None:
+        """Map a raw job title to one of the nine careers, or None."""
+        hit = self.match_title_with_alias(title)
+        return hit[0] if hit else None

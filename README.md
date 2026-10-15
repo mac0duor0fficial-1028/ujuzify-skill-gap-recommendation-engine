@@ -12,14 +12,14 @@ An end-to-end machine learning system that helps Kenyan university/TVET graduate
 | 0 | Repository scaffold | Done |
 | 1 | Problem definition, taxonomies, data model, evaluation, explainability | Done |
 | 2 | Data acquisition: source registry, raw schema, ingestion, validation | Done (offline fixture; live API source needs configuration) |
-| 3 | ETL and PostgreSQL | Next |
-| 4 | NLP skill extraction | Planned |
-| 5 | Career classification and skill-gap engine | Planned |
+| 3 | ETL (staging, weak career labels, skill demand) and PostgreSQL schema | Done |
+| 4 | NLP skill extraction (rule extractor, evaluation harness, job_skills) | Done |
+| 5 | Career classification and skill-gap engine | Next |
 | 6 | Learning resources, FastAPI, Streamlit | Planned |
 | 7 | Docker, CI/CD, monitoring, MLflow | Planned |
 | 8-12 | Advanced models, Power BI, AWS | Planned |
 
-Test gates (cumulative passing tests): 10 after Phase 5, 13 after Phase 6, 15 after Phase 7. Phase 0-1 add no pytest tests.
+Test gates (cumulative passing tests): 10 after Phase 5, 13 after Phase 6, 15 after Phase 7. Phase 0-1 add no pytest tests; Phase 2 adds 5, Phase 3 adds 2 and Phase 4 adds 2 (9 so far).
 
 ## Quick start
 Target Python version: **3.13** (matches the Phase 7 Docker image).
@@ -32,6 +32,11 @@ cp .env.example .env               # then replace placeholder secrets
 python scripts/validate_taxonomies.py
 python src/ingestion/job_api.py        # Phase 2: offline sample source
 python src/ingestion/validate_jobs.py
+python src/etl/build_staging.py     # Phase 3
+python src/etl/build_labels.py
+python src/nlp/extract_job_skills.py   # Phase 4
+python src/etl/build_skill_demand.py --job-skills data/processed/job_skills.csv
+python src/evaluation/skill_extraction_eval.py
 pytest
 ```
 
@@ -60,6 +65,8 @@ graduate-skill-gap-engine/
 ## Documentation
 - `docs/phase1_problem_definition.md` — problem, users, scope, architecture, strategy
 - `docs/phase2_data_acquisition.md` — source registry, raw schema, ingestion and validation
+- `docs/phase3_etl.md` — staging, labels, skill demand and the PostgreSQL schema
+- `docs/phase4_nlp.md` — skill extractor, evaluation results and known failures
 - `docs/data_model.md` — entities, fields, relationships
 - `docs/evaluation_strategy.md` — metrics and baselines
 - `docs/explainability_requirements.md` — explanation and scoring rules
