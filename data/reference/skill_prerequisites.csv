@@ -1,0 +1,23 @@
+skill,requires,rationale
+pandas,python,pandas is a Python library
+numpy,python,NumPy is a Python library
+scikit_learn,python,scikit-learn is a Python library
+tensorflow,python,usually used from Python
+pytorch,python,usually used from Python
+fastapi,python,FastAPI is a Python framework
+fastapi,rest_apis,FastAPI is used to build REST APIs
+django,python,Django is a Python framework
+flask,python,Flask is a Python framework
+airflow,python,Airflow pipelines are defined in Python
+dbt,sql,dbt models are SQL
+data_warehousing,sql,warehouse work is mostly SQL
+kubernetes,docker,Kubernetes runs containers
+model_deployment,docker,models are usually shipped in containers
+ci_cd,git,pipelines are driven by version control
+react,javascript,React is a JavaScript library
+typescript,javascript,TypeScript builds on JavaScript
+dax,power_bi,DAX is the Power BI formula language
+network_security,networking,security builds on networking basics
+incident_response,cybersecurity_fundamentals,response builds on security fundamentals
+penetration_testing,cybersecurity_fundamentals,testing builds on security fundamentals
+deep_learning,machine_learning,deep learning builds on ML basics

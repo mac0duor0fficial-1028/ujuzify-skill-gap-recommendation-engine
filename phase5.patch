@@ -1,0 +1,1507 @@
+From 112e596767b98338456d070e7a9f07742c2c5dbe Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 16 Oct 2026 05:08:13 +0000
+Subject: [PATCH] Phase 5: career recommendation engine, skill-gap analysis,
+ evaluation
+
+- src/recommendation/profiles.py, build_career_skills.py: career skill profiles
+  (frequency, importance, low_sample) -> data/processed/career_skills.csv
+- src/recommendation/engine.py: weighted_coverage_v1 plus three baselines
+  (popularity, keyword overlap, TF-IDF cosine); evidence, tie flags,
+  prerequisite-aware gap analysis
+- src/recommendation/recommend.py: CLI, stores model_version and created_at,
+  --expect-top gate (demo profile ranks Data Analyst first)
+- src/evaluation/recommendation_eval.py: Hit@1/3, MRR, P/R/NDCG@3 on gold
+  profiles and leave-one-out postings
+- data/reference: demo_profile.json, skill_prerequisites.csv (authored, needs review)
+- data/evaluation/profile_gold_dev.csv (13 author-written profiles)
+- database: curated.career_skills (profile/recommendation tables deferred to Phase 7)
+- tests/test_phase5_recommendation.py (3 tests), docs/phase5_recommendation.md
+
+Evaluation is circular on synthetic data; the engine does not beat the TF-IDF baseline.
+---
+ README.md                                 |  10 +-
+ data/evaluation/profile_gold_dev.csv      |  14 ++
+ data/reference/demo_profile.json          |   9 +
+ data/reference/skill_prerequisites.csv    |  23 ++
+ database/load.sql                         |  13 +-
+ database/schema.sql                       |  42 +++-
+ docs/phase5_recommendation.md             |  62 +++++
+ src/etl/common.py                         |  11 +
+ src/evaluation/recommendation_eval.py     | 215 +++++++++++++++++
+ src/recommendation/build_career_skills.py |  96 ++++++++
+ src/recommendation/engine.py              | 267 ++++++++++++++++++++++
+ src/recommendation/profiles.py            | 124 ++++++++++
+ src/recommendation/recommend.py           | 160 +++++++++++++
+ tests/test_phase5_recommendation.py       | 248 ++++++++++++++++++++
+ 14 files changed, 1287 insertions(+), 7 deletions(-)
+ create mode 100644 data/evaluation/profile_gold_dev.csv
+ create mode 100644 data/reference/demo_profile.json
+ create mode 100644 data/reference/skill_prerequisites.csv
+ create mode 100644 docs/phase5_recommendation.md
+ create mode 100644 src/evaluation/recommendation_eval.py
+ create mode 100644 src/recommendation/build_career_skills.py
+ create mode 100644 src/recommendation/engine.py
+ create mode 100644 src/recommendation/profiles.py
+ create mode 100644 src/recommendation/recommend.py
+ create mode 100644 tests/test_phase5_recommendation.py
+
+diff --git a/README.md b/README.md
+index 3ac282d..05d13d0 100644
+--- a/README.md
++++ b/README.md
+@@ -14,12 +14,12 @@ An end-to-end machine learning system that helps Kenyan university/TVET graduate
+ | 2 | Data acquisition: source registry, raw schema, ingestion, validation | Done (offline fixture; live API source needs configuration) |
+ | 3 | ETL (staging, weak career labels, skill demand) and PostgreSQL schema | Done |
+ | 4 | NLP skill extraction (rule extractor, evaluation harness, job_skills) | Done |
+-| 5 | Career classification and skill-gap engine | Next |
+-| 6 | Learning resources, FastAPI, Streamlit | Planned |
++| 5 | Career recommendation and skill-gap engine | Done |
++| 6 | Learning resources, FastAPI, Streamlit | Next |
+ | 7 | Docker, CI/CD, monitoring, MLflow | Planned |
+ | 8-12 | Advanced models, Power BI, AWS | Planned |
+ 
+-Test gates (cumulative passing tests): 10 after Phase 5, 13 after Phase 6, 15 after Phase 7. Phase 0-1 add no pytest tests; Phase 2 adds 5, Phase 3 adds 2 and Phase 4 adds 2 (9 so far).
++Test gates (cumulative passing tests): 10 after Phase 5, 13 after Phase 6, 15 after Phase 7. Phase 0-1 add no pytest tests; Phase 2 adds 5, Phase 3 adds 2, Phase 4 adds 2 and Phase 5 adds 3 (12 so far; the README gate of 10 after Phase 5 is exceeded, so adjust it if you treat gates as exact).
+ 
+ ## Quick start
+ Target Python version: **3.13** (matches the Phase 7 Docker image).
+@@ -37,6 +37,9 @@ python src/etl/build_labels.py
+ python src/nlp/extract_job_skills.py   # Phase 4
+ python src/etl/build_skill_demand.py --job-skills data/processed/job_skills.csv
+ python src/evaluation/skill_extraction_eval.py
++python src/recommendation/build_career_skills.py   # Phase 5
++python src/recommendation/recommend.py --expect-top CA01
++python src/evaluation/recommendation_eval.py
+ pytest
+ ```
+ 
+@@ -67,6 +70,7 @@ graduate-skill-gap-engine/
+ - `docs/phase2_data_acquisition.md` — source registry, raw schema, ingestion and validation
+ - `docs/phase3_etl.md` — staging, labels, skill demand and the PostgreSQL schema
+ - `docs/phase4_nlp.md` — skill extractor, evaluation results and known failures
++- `docs/phase5_recommendation.md` — career models, skill-gap analysis, evaluation and its limits
+ - `docs/data_model.md` — entities, fields, relationships
+ - `docs/evaluation_strategy.md` — metrics and baselines
+ - `docs/explainability_requirements.md` — explanation and scoring rules
+diff --git a/data/evaluation/profile_gold_dev.csv b/data/evaluation/profile_gold_dev.csv
+new file mode 100644
+index 0000000..4939eb6
+--- /dev/null
++++ b/data/evaluation/profile_gold_dev.csv
+@@ -0,0 +1,14 @@
++profile_id,skills,acceptable_careers,note
++P01,excel|sql|statistics|communication|data_visualization,CA01|CA02,analyst-leaning
++P02,power_bi|dax|power_query|sql|data_visualization,CA02|CA01,BI-leaning
++P03,python|sql|airflow|postgresql|docker|etl,CA03,data-engineering-leaning
++P04,python|statistics|pandas|scikit_learn|machine_learning|numpy,CA04|CA05,data-science-leaning
++P05,python|pytorch|tensorflow|docker|model_deployment|kubernetes,CA05,ML-engineering-leaning
++P06,aws|azure|terraform|linux|networking,CA06|CA07,cloud-leaning
++P07,docker|kubernetes|ci_cd|linux|git|terraform,CA07|CA06,devops-leaning
++P08,javascript|react|typescript|rest_apis|git|django,CA08,software-leaning
++P09,siem|incident_response|network_security|vulnerability_assessment|cybersecurity_fundamentals,CA09,security-leaning
++P10,python|sql|excel,CA01|CA03|CA04,beginner with generic skills
++P11,sql|excel|power_bi,CA01|CA02,matches the Phase 1 doc example
++P12,linux|bash|git|python|docker,CA07|CA06|CA03,sysadmin-to-devops
++P13,python|sql|data_visualization|statistics|pandas,CA01|CA04,analyst or scientist
+diff --git a/data/reference/demo_profile.json b/data/reference/demo_profile.json
+new file mode 100644
+index 0000000..493fa7c
+--- /dev/null
++++ b/data/reference/demo_profile.json
+@@ -0,0 +1,9 @@
++{
++  "profile_id": "demo_stats_graduate",
++  "education_level": "bachelor",
++  "field_of_study": "Statistics",
++  "experience_years": 0,
++  "target_career": null,
++  "skills": ["Excel", "SQL", "Statistics", "Data visualization", "Python", "Communication"],
++  "note": "Illustrative demo profile, not a real graduate."
++}
+diff --git a/data/reference/skill_prerequisites.csv b/data/reference/skill_prerequisites.csv
+new file mode 100644
+index 0000000..2b27127
+--- /dev/null
++++ b/data/reference/skill_prerequisites.csv
+@@ -0,0 +1,23 @@
++skill,requires,rationale
++pandas,python,pandas is a Python library
++numpy,python,NumPy is a Python library
++scikit_learn,python,scikit-learn is a Python library
++tensorflow,python,usually used from Python
++pytorch,python,usually used from Python
++fastapi,python,FastAPI is a Python framework
++fastapi,rest_apis,FastAPI is used to build REST APIs
++django,python,Django is a Python framework
++flask,python,Flask is a Python framework
++airflow,python,Airflow pipelines are defined in Python
++dbt,sql,dbt models are SQL
++data_warehousing,sql,warehouse work is mostly SQL
++kubernetes,docker,Kubernetes runs containers
++model_deployment,docker,models are usually shipped in containers
++ci_cd,git,pipelines are driven by version control
++react,javascript,React is a JavaScript library
++typescript,javascript,TypeScript builds on JavaScript
++dax,power_bi,DAX is the Power BI formula language
++network_security,networking,security builds on networking basics
++incident_response,cybersecurity_fundamentals,response builds on security fundamentals
++penetration_testing,cybersecurity_fundamentals,testing builds on security fundamentals
++deep_learning,machine_learning,deep learning builds on ML basics
+diff --git a/database/load.sql b/database/load.sql
+index 6615708..9cc4a47 100644
+--- a/database/load.sql
++++ b/database/load.sql
+@@ -4,9 +4,9 @@
+ 
+ BEGIN;
+ 
+-TRUNCATE analytics.skill_demand, curated.job_skills, curated.job_career_labels, curated.job_postings,
++TRUNCATE analytics.skill_demand, curated.career_skills, curated.job_skills, curated.job_career_labels, curated.job_postings,
+          curated.skills, curated.careers,
+-         staging.jobs, staging.job_labels, staging.job_skills, staging.skill_demand;
++         staging.jobs, staging.job_labels, staging.job_skills, staging.career_skills, staging.skill_demand;
+ 
+ \copy curated.careers FROM 'data/external/career_taxonomy.csv' WITH (FORMAT csv, HEADER true)
+ \copy curated.skills  FROM 'data/external/skill_taxonomy.csv'  WITH (FORMAT csv, HEADER true)
+@@ -14,6 +14,7 @@ TRUNCATE analytics.skill_demand, curated.job_skills, curated.job_career_labels,
+ \copy staging.jobs         FROM 'data/interim/staging_jobs.csv'    WITH (FORMAT csv, HEADER true)
+ \copy staging.job_labels   FROM 'data/processed/job_labels.csv'    WITH (FORMAT csv, HEADER true)
+ \copy staging.job_skills   FROM 'data/processed/job_skills.csv'    WITH (FORMAT csv, HEADER true)
++\copy staging.career_skills FROM 'data/processed/career_skills.csv'  WITH (FORMAT csv, HEADER true)
+ \copy staging.skill_demand FROM 'data/processed/skill_demand.csv'  WITH (FORMAT csv, HEADER true)
+ 
+ INSERT INTO curated.job_postings
+@@ -34,6 +35,13 @@ INSERT INTO curated.job_skills
+ SELECT job_id, skill_id, importance, requirement_level, evidence, rule, mentions, method
+ FROM staging.job_skills;
+ 
++INSERT INTO curated.career_skills
++    (career_id, skill_id, postings_with_skill, postings_in_career, frequency, importance,
++     low_sample, synthetic_postings_in_career, method)
++SELECT career_id, skill_id, postings_with_skill, postings_in_career, frequency, importance,
++       low_sample, synthetic_postings_in_career, method
++FROM staging.career_skills;
++
+ INSERT INTO analytics.skill_demand
+     (scope, scope_name, skill_id, postings_with_skill, postings_in_scope, share, low_sample,
+      synthetic_postings_in_scope, method)
+@@ -49,4 +57,5 @@ UNION ALL SELECT 'skills', count(*) FROM curated.skills
+ UNION ALL SELECT 'job_postings', count(*) FROM curated.job_postings
+ UNION ALL SELECT 'job_career_labels', count(*) FROM curated.job_career_labels
+ UNION ALL SELECT 'job_skills', count(*) FROM curated.job_skills
++UNION ALL SELECT 'career_skills', count(*) FROM curated.career_skills
+ UNION ALL SELECT 'skill_demand', count(*) FROM analytics.skill_demand;
+diff --git a/database/schema.sql b/database/schema.sql
+index ffe9bc7..e23b395 100644
+--- a/database/schema.sql
++++ b/database/schema.sql
+@@ -4,8 +4,7 @@
+ --
+ -- Layers: staging (CSV mirrors, loaded as-is) -> curated (typed, constrained, FK-linked)
+ --         -> analytics (derived statistics). Raw JSONL stays on disk in data/raw/.
+--- profile_*, career_skills, learning_resources and recommendations tables are added by the
+--- phases that produce that data (5-6).
++-- learning_resources arrives with Phase 6, profile and recommendation tables with Phase 7.
+ 
+ CREATE SCHEMA IF NOT EXISTS staging;
+ CREATE SCHEMA IF NOT EXISTS curated;
+@@ -58,6 +57,21 @@ CREATE TABLE IF NOT EXISTS staging.job_skills (
+     is_synthetic      boolean
+ );
+ 
++CREATE TABLE IF NOT EXISTS staging.career_skills (
++    career_id                    text,
++    career_name                  text,
++    skill_id                     text,
++    canonical_name               text,
++    category                     text,
++    postings_with_skill          integer,
++    postings_in_career           integer,
++    frequency                    numeric,
++    importance                   numeric,
++    low_sample                   boolean,
++    synthetic_postings_in_career integer,
++    method                       text
++);
++
+ CREATE TABLE IF NOT EXISTS staging.skill_demand (
+     scope                       text,
+     scope_name                  text,
+@@ -138,6 +152,30 @@ CREATE TABLE IF NOT EXISTS curated.job_skills (
+ );
+ CREATE INDEX IF NOT EXISTS job_skills_skill_idx ON curated.job_skills (skill_id);
+ 
++-- Career skill profiles (Phase 5): what sampled postings for each career ask for.
++-- frequency = share of the career's postings mentioning the skill; importance = mean posting-level
++-- importance (<= frequency). Sample statistics, not a ranking of the labour market.
++CREATE TABLE IF NOT EXISTS curated.career_skills (
++    career_id                    text    NOT NULL REFERENCES curated.careers (career_id),
++    skill_id                     text    NOT NULL REFERENCES curated.skills (skill_id),
++    postings_with_skill          integer NOT NULL CHECK (postings_with_skill > 0),
++    postings_in_career           integer NOT NULL CHECK (postings_in_career > 0),
++    frequency                    numeric NOT NULL CHECK (frequency > 0 AND frequency <= 1),
++    importance                   numeric NOT NULL CHECK (importance > 0 AND importance <= 1),
++    low_sample                   boolean NOT NULL,
++    synthetic_postings_in_career integer NOT NULL CHECK (synthetic_postings_in_career >= 0),
++    method                       text    NOT NULL,
++    PRIMARY KEY (career_id, skill_id),
++    CHECK (importance <= frequency),
++    CHECK (postings_with_skill <= postings_in_career)
++);
++CREATE INDEX IF NOT EXISTS career_skills_skill_idx ON curated.career_skills (skill_id);
++
++-- NOT created here: graduate_profiles, profile_skills, recommendations (data_model.md). They hold
++-- user data and the audit trail of recommendations (model_version, created_at), so they must
++-- survive the full-refresh reload in load.sql. They arrive with the Phase 7 API that writes them;
++-- until then recommendations are stored in data/processed/recommendations.csv.
++
+ -- ---------------------------------------------------------------- analytics
+ -- scope is 'all' or a career_id. Shares are sample statistics from the acquired corpus,
+ -- not a ranking of the labour market; low_sample and synthetic counts must travel with them.
+diff --git a/docs/phase5_recommendation.md b/docs/phase5_recommendation.md
+new file mode 100644
+index 0000000..bca9dc5
+--- /dev/null
++++ b/docs/phase5_recommendation.md
+@@ -0,0 +1,62 @@
++# Phase 5 — Career Recommendation and Skill-Gap Engine
++
++Scope: rank the nine careers for a graduate profile, explain each ranking with evidence, and list the skills to learn for a target career in priority order. Learning resources (Phase 6) and the API/UI (Phase 7) are not part of this phase.
++
++## Run order (Phase 5 gate)
++```bash
++python src/recommendation/build_career_skills.py        # staging + labels + job_skills -> data/processed/career_skills.csv
++python src/recommendation/recommend.py --expect-top CA01 # demo profile; exit 2 if the top career is not Data Analyst
++python src/evaluation/recommendation_eval.py             # metrics for all four models
++pytest                                                   # 12 tests (5 + 2 + 2 + 3)
++```
++`recommend.py` writes every ranked career to `data/processed/recommendations.csv` (with `model_version` and `created_at`) and the full explanation to `data/processed/recommendations.json`. Use `--profile my.json`, `--target CA03`, `--model tfidf_cosine_v0` to vary the run.
++
++## Career profiles (`build_career_skills.py`)
++For each career, from its labeled postings: `frequency` = share of postings mentioning the skill; `importance` = mean posting-level importance (1.0, or 0.5 where the posting calls the skill "a plus"; 0 where absent), so `importance <= frequency`. Careers below `--min-postings` (default 30) are flagged `low_sample`. Profiles are generated data (`career_skills.csv`), not code: the engine contains no career or skill catalog (explainability rule 7).
++
++## Models (`src/recommendation/engine.py`)
++| Model | Score |
++|---|---|
++| `popularity_v0` (baseline 1) | career's share of all postings; ignores the profile |
++| `keyword_overlap_v0` (baseline 2) | share of the profile's skills that the career mentions |
++| `tfidf_cosine_v0` (baseline 3) | TF-IDF cosine between profile and career skill vector |
++| `weighted_coverage_v1` (default engine) | sum of career importance over skills you have ÷ sum over all the career's skills |
++
++`weighted_coverage_v1` reads as "you already cover X% of what sampled postings for this career ask for, weighted by importance". Skills you have that the career does not ask for do not count for or against it. Ties are broken by posting volume, then career id, and ties are shown in the output ("tied with N other career(s): order among them is arbitrary").
++
++## Skill-gap analysis
++Missing skills for the target career (explicit `--target`, the profile's `target_career`, or the top match) are ordered by importance, then frequency, with prerequisites moved ahead of the skills that build on them when both are missing. Each item states why: frequency, importance and sample size, plus the prerequisite status. Prerequisites come from `data/reference/skill_prerequisites.csv` (22 pairs, **an authored starter set that needs domain review**, validated for unknown names and cycles). Every gap item has a `resource` field that is empty until Phase 6.
++
++## Explainability rules (`docs/explainability_requirements.md`)
++1. Compatibility, not probability: output says "compatibility"; a test checks it never uses probability/chance/likelihood wording.
++2. Evidence: matched and missing skills with importance, frequency and sample size for every career.
++3. Data limits: the required data-limits sentence and the disclaimer are in every output (exact text pinned by a test).
++4. No confidence indicator is produced (so none can be mistaken for calibration). `low_sample` and tie flags are shown instead.
++5. Traceability: every stored recommendation has `model_version` and `created_at`.
++6. Gap reasons are given; links to resources wait for Phase 6.
++7. Career profiles and prerequisites are data files.
++
++## Evaluation (`recommendation_eval.py`)
++Metrics: Hit@1, Hit@3, MRR, Precision/Recall/NDCG@3. Two evaluations, **both circular on the synthetic fixture**: the fixture's skills were generated per career and the 13 gold profiles were written by the engine's author, so these numbers validate the evaluation pipeline, not real-world accuracy.
++
++| Evaluation | popularity | keyword overlap | TF-IDF cosine | weighted coverage (engine) |
++|---|---|---|---|---|
++| Gold profiles (13), Hit@1 / MRR | 0.385 / 0.514 | 1.000 / 1.000 | 1.000 / 1.000 | 0.923 / 0.962 |
++| Leave-one-out postings (28), all skills, Hit@1 / MRR | 0.143 / 0.238 | 0.786 / 0.875 | 0.929 / 0.964 | 0.929 / 0.964 |
++| Leave-one-out postings (28), 60% of skills, Hit@1 / MRR | 0.143 / 0.238 | 0.643 / 0.762 | 0.857 / 0.929 | 0.821 / 0.896 |
++
++What this does and does not show:
++- Every profile-aware model beats the popularity baseline by a wide margin.
++- **The engine does not beat the TF-IDF baseline here, and does not beat keyword overlap on the gold profiles.** `docs/evaluation_strategy.md` says a new method must beat earlier baselines to justify its complexity; on this data it has not, and the evidence cannot distinguish them (13 and 28 profiles; one profile moves Hit@1 by 4-8 points).
++- The engine's single gold miss (P12) is a three-way exact tie at 32% between ML Engineer, Cloud Engineer and DevOps Engineer; the tie-break picked ML Engineer. That is a limit of tiny, lumpy profiles (3 postings per career), not necessarily of the scoring rule.
++- The engine is kept as the default because its score has a direct reading ("share of typical requirements already covered") that TF-IDF cosine lacks, and Phase 1 chose an interpretable first engine. That is a design choice, not a measured advantage. Re-run this evaluation on real postings and independently labelled real graduate profiles before relying on either; switching is one flag (`--model tfidf_cosine_v0`) and evidence reasons work for every model.
++
++## Demo gate
++The demo profile (`data/reference/demo_profile.json`: Excel, SQL, Statistics, Data Visualization, Python, Communication) was fixed before the first run. Data Analyst ranks first at 56% compatibility (Data Scientist 38%, Business Intelligence Analyst 31%) under the engine, keyword overlap and TF-IDF; only the profile-blind popularity baseline differs. A DevOps-style profile ranks Cloud/DevOps first and a security profile ranks Cybersecurity first, so the result is not hard-wired. All careers are `low_sample` (3-4 postings each), so the percentages are illustrative.
++
++## Not done
++- No learned model or embeddings: there are no reviewed labels to train or validate one, and the career labels are weak title-derived labels.
++- Proficiency is ignored: a skill is present or not. The scale is a decision for later.
++- No user constraints (location, budget, weekly time) and no negation handling.
++- Graduate profile and recommendation tables are not in PostgreSQL yet. They hold user data and the audit trail, so they must survive the full-refresh `load.sql`; they arrive with the Phase 7 API. Only `curated.career_skills` was added (verified on PostgreSQL 16).
++- Everything ran on 30 synthetic postings.
+diff --git a/src/etl/common.py b/src/etl/common.py
+index 99f9546..56bbd46 100644
+--- a/src/etl/common.py
++++ b/src/etl/common.py
+@@ -13,6 +13,8 @@ STAGING_CSV = ROOT / "data" / "interim" / "staging_jobs.csv"
+ LABELS_CSV = ROOT / "data" / "processed" / "job_labels.csv"
+ DEMAND_CSV = ROOT / "data" / "processed" / "skill_demand.csv"
+ JOB_SKILLS_CSV = ROOT / "data" / "processed" / "job_skills.csv"
++CAREER_SKILLS_CSV = ROOT / "data" / "processed" / "career_skills.csv"
++RECOMMENDATIONS_CSV = ROOT / "data" / "processed" / "recommendations.csv"
+ 
+ # Column contracts. database/schema.sql mirrors these (a test keeps them in sync).
+ STAGING_COLUMNS = [
+@@ -29,6 +31,15 @@ JOB_SKILL_COLUMNS = [
+     "job_id", "skill_id", "canonical_name", "importance", "requirement_level", "evidence",
+     "rule", "mentions", "method", "is_synthetic",
+ ]
++CAREER_SKILL_COLUMNS = [
++    "career_id", "career_name", "skill_id", "canonical_name", "category", "postings_with_skill",
++    "postings_in_career", "frequency", "importance", "low_sample",
++    "synthetic_postings_in_career", "method",
++]
++RECOMMENDATION_COLUMNS = [
++    "recommendation_id", "profile_id", "career_id", "rank", "score", "model_version", "created_at",
++    "matched_skills", "missing_skills", "postings_in_career", "low_sample",
++]
+ DEMAND_COLUMNS = [
+     "scope", "scope_name", "skill_id", "canonical_name", "category", "postings_with_skill",
+     "postings_in_scope", "share", "low_sample", "synthetic_postings_in_scope", "method",
+diff --git a/src/evaluation/recommendation_eval.py b/src/evaluation/recommendation_eval.py
+new file mode 100644
+index 0000000..50aedc0
+--- /dev/null
++++ b/src/evaluation/recommendation_eval.py
+@@ -0,0 +1,215 @@
++"""Evaluate career recommendation models (Phase 5).
++
++    python src/evaluation/recommendation_eval.py
++
++Metrics follow docs/evaluation_strategy.md section 1: Precision@K, Recall@K, NDCG@K (binary
++relevance), MRR, Hit@1 and Hit@3, averaged over profiles. All four models are scored on
++identical inputs: popularity_v0, keyword_overlap_v0, tfidf_cosine_v0 (the baselines) and
++weighted_coverage_v1 (the engine).
++
++Two evaluations are run:
++
++1. **Gold profiles** (data/evaluation/profile_gold_dev.csv): hand-written graduate profiles
++   with acceptable careers. Written by the engine's author before the engine ran.
++2. **Leave-one-out postings**: each labeled posting's skills become a pseudo-profile whose
++   acceptable career is the posting's (weak, title-derived) label, and career profiles are
++   rebuilt *without that posting*. Run with all of the posting's skills and with a
++   deterministic 60% subset to mimic a graduate who knows only part of a role's skills.
++
++CAVEATS (evaluation_strategy section 5). With the shipped synthetic fixture both are
++circular: the fixture's skills were generated per career, and the gold profiles were written
++by the same author from the same ideas, so high scores validate the evaluation pipeline,
++not real-world accuracy. Real evaluation needs real Kenyan graduate profiles with acceptable
++careers labelled by people who did not build the engine. On real postings the leave-one-out
++test becomes a meaningful sanity check, but its labels still come from titles.
++
++Standard library only.
++"""
++from __future__ import annotations
++
++import argparse
++import csv
++import hashlib
++import json
++import math
++import sys
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parents[2]
++if str(ROOT) not in sys.path:
++    sys.path.insert(0, str(ROOT))
++
++from src.etl.common import (  # noqa: E402
++    CAREER_SKILL_COLUMNS, CAREER_SKILLS_CSV, JOB_SKILL_COLUMNS, JOB_SKILLS_CSV, LABEL_COLUMNS,
++    LABELS_CSV, STAGING_COLUMNS, STAGING_CSV, EtlError, read_csv,
++)
++from src.nlp.skill_dictionary import CAREERS_CSV, SkillDictionary  # noqa: E402
++from src.recommendation.engine import MODEL_VERSION, MODELS, rank_careers  # noqa: E402
++from src.recommendation.profiles import (  # noqa: E402
++    CorpusCounts, Posting, postings_from_rows, profiles_from_career_skill_rows,
++)
++
++GOLD_PROFILES_CSV = ROOT / "data" / "evaluation" / "profile_gold_dev.csv"
++REPORT_JSON = ROOT / "data" / "interim" / "recommendation_eval_report.json"
++GOLD_COLUMNS = ["profile_id", "skills", "acceptable_careers", "note"]
++K = 3
++
++
++# ------------------------------------------------------------------ metrics
++def precision_at_k(ranked: list[str], relevant: set, k: int) -> float:
++    return sum(1 for c in ranked[:k] if c in relevant) / k
++
++
++def recall_at_k(ranked: list[str], relevant: set, k: int) -> float:
++    return sum(1 for c in ranked[:k] if c in relevant) / len(relevant)
++
++
++def ndcg_at_k(ranked: list[str], relevant: set, k: int) -> float:
++    dcg = sum(1 / math.log2(i + 1) for i, c in enumerate(ranked[:k], 1) if c in relevant)
++    ideal = sum(1 / math.log2(i + 1) for i in range(1, min(k, len(relevant)) + 1))
++    return dcg / ideal if ideal else 0.0
++
++
++def reciprocal_rank(ranked: list[str], relevant: set) -> float:
++    for i, c in enumerate(ranked, 1):
++        if c in relevant:
++            return 1 / i
++    return 0.0
++
++
++def hit_at_k(ranked: list[str], relevant: set, k: int) -> float:
++    return float(any(c in relevant for c in ranked[:k]))
++
++
++def summarize(rankings: dict[str, list[str]], gold: dict[str, set]) -> dict:
++    """Mean metrics over profiles that have at least one acceptable career."""
++    ids = [p for p in rankings if gold.get(p)]
++    if not ids:
++        raise ValueError("no profiles with acceptable careers to evaluate")
++    mean = lambda f: round(sum(f(rankings[p], gold[p]) for p in ids) / len(ids), 4)  # noqa: E731
++    return {
++        "profiles": len(ids),
++        "hit@1": mean(lambda r, g: hit_at_k(r, g, 1)),
++        "hit@3": mean(lambda r, g: hit_at_k(r, g, 3)),
++        "mrr": mean(reciprocal_rank),
++        f"precision@{K}": mean(lambda r, g: precision_at_k(r, g, K)),
++        f"recall@{K}": mean(lambda r, g: recall_at_k(r, g, K)),
++        f"ndcg@{K}": mean(lambda r, g: ndcg_at_k(r, g, K)),
++    }
++
++
++# ------------------------------------------------------------------ gold profiles
++def load_gold_profiles(path: Path | str, dictionary: SkillDictionary,
++                       career_ids: set[str]) -> list[dict]:
++    with Path(path).open(newline="", encoding="utf-8") as fh:
++        reader = csv.DictReader(fh)
++        if reader.fieldnames != GOLD_COLUMNS:
++            raise ValueError(f"gold profile columns must be {GOLD_COLUMNS}, found {reader.fieldnames}")
++        rows = list(reader)
++    out, seen = [], set()
++    for r in rows:
++        if r["profile_id"] in seen:
++            raise ValueError(f"duplicate gold profile_id {r['profile_id']}")
++        seen.add(r["profile_id"])
++        ids = set()
++        for name in filter(None, r["skills"].split("|")):
++            sk = dictionary.by_canonical.get(name)
++            if sk is None:
++                raise ValueError(f"{r['profile_id']}: unknown skill '{name}'")
++            ids.add(sk.skill_id)
++        acceptable = set(filter(None, r["acceptable_careers"].split("|")))
++        unknown = acceptable - career_ids
++        if not acceptable or unknown:
++            raise ValueError(f"{r['profile_id']}: acceptable_careers must be known career ids, got {sorted(acceptable)}")
++        out.append({"profile_id": r["profile_id"], "skills": frozenset(ids), "acceptable": acceptable})
++    return out
++
++
++def evaluate_gold_profiles(gold: list[dict], profiles: dict) -> dict:
++    """model name -> metrics, plus the per-profile top-ranked career for inspection."""
++    acceptable = {g["profile_id"]: g["acceptable"] for g in gold}
++    report = {}
++    for name, fn in MODELS.items():
++        rankings = {g["profile_id"]: rank_careers(fn(g["skills"], profiles), profiles) for g in gold}
++        report[name] = summarize(rankings, acceptable)
++        report[name]["misses_at_1"] = sorted(p for p, r in rankings.items() if r[0] not in acceptable[p])
++    return report
++
++
++# ------------------------------------------------------------------ leave-one-out postings
++def _keep(job_id: str, skill_id: str, fraction: float) -> bool:
++    h = int(hashlib.sha1(f"{job_id}|{skill_id}".encode()).hexdigest()[:8], 16) / 2**32
++    return h < fraction
++
++
++def evaluate_leave_one_out(postings: list[Posting], career_names: dict[str, str],
++                           keep_fraction: float = 1.0, min_postings: int = 30) -> dict:
++    counts = CorpusCounts(postings, career_names, min_postings)
++    rankings: dict[str, list[str]] = {name: {} for name in MODELS}
++    gold: dict[str, set] = {}
++    skipped = 0
++    for p in postings:
++        skills = frozenset(s for s in p.skills if _keep(p.job_id, s, keep_fraction))
++        profiles = counts.profiles(exclude=p)
++        if not skills or p.career_id not in profiles:
++            skipped += 1     # nothing to rank with, or the held-out career has no other posting
++            continue
++        gold[p.job_id] = {p.career_id}
++        for name, fn in MODELS.items():
++            rankings[name][p.job_id] = rank_careers(fn(skills, profiles), profiles)
++    report = {name: summarize(r, gold) for name, r in rankings.items()} if gold else {}
++    return {"keep_fraction": keep_fraction, "skipped_postings": skipped, "models": report}
++
++
++# ------------------------------------------------------------------ CLI
++def _print_table(title: str, models: dict) -> None:
++    n = next(iter(models.values()))["profiles"]
++    print(f"\n  {title} ({n} profiles)")
++    cols = ["hit@1", "hit@3", "mrr", f"precision@{K}", f"recall@{K}", f"ndcg@{K}"]
++    print(f"    {'model':24s}" + "".join(f"{c:>13s}" for c in cols))
++    for name, m in models.items():
++        print(f"    {name:24s}" + "".join(f"{m[c]:13.3f}" for c in cols))
++
++
++def main(argv: list[str] | None = None) -> int:
++    ap = argparse.ArgumentParser(description="Evaluate career recommendation models.")
++    ap.add_argument("--gold", default=str(GOLD_PROFILES_CSV))
++    ap.add_argument("--career-skills", default=str(CAREER_SKILLS_CSV))
++    ap.add_argument("--staging", default=str(STAGING_CSV))
++    ap.add_argument("--labels", default=str(LABELS_CSV))
++    ap.add_argument("--job-skills", default=str(JOB_SKILLS_CSV))
++    ap.add_argument("--report", default=str(REPORT_JSON))
++    args = ap.parse_args(argv)
++    try:
++        sd = SkillDictionary.load()
++        profiles = profiles_from_career_skill_rows(read_csv(Path(args.career_skills), CAREER_SKILL_COLUMNS))
++        gold = load_gold_profiles(args.gold, sd, set(profiles))
++        report = {"gold_profiles": evaluate_gold_profiles(gold, profiles)}
++        postings = postings_from_rows(read_csv(Path(args.staging), STAGING_COLUMNS),
++                                      read_csv(Path(args.labels), LABEL_COLUMNS),
++                                      read_csv(Path(args.job_skills), JOB_SKILL_COLUMNS))
++        with Path(CAREERS_CSV).open(newline="", encoding="utf-8") as fh:
++            names = {r["career_id"]: r["career_name"] for r in csv.DictReader(fh)}
++        report["leave_one_out"] = [evaluate_leave_one_out(postings, names, f) for f in (1.0, 0.6)]
++    except (EtlError, ValueError, OSError) as e:
++        print(f"EVALUATION FAILED: {e}")
++        return 1
++    rp = Path(args.report)
++    rp.parent.mkdir(parents=True, exist_ok=True)
++    rp.write_text(json.dumps(report, indent=2), encoding="utf-8")
++
++    print("CAREER RECOMMENDATION EVALUATION")
++    _print_table("gold profiles (author-written)", report["gold_profiles"])
++    misses = report["gold_profiles"][MODEL_VERSION]["misses_at_1"]
++    print(f"    {MODEL_VERSION} top-1 misses: {misses or 'none'}")
++    for loo in report["leave_one_out"]:
++        if loo["models"]:
++            _print_table(f"leave-one-out postings, {loo['keep_fraction']:.0%} of each posting's skills", loo["models"])
++    print("\n  NOTE: on the synthetic fixture these evaluations are circular (see module docstring);")
++    print("  they validate the evaluation pipeline, not real-world accuracy.")
++    print(f"  report: {rp}")
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/src/recommendation/build_career_skills.py b/src/recommendation/build_career_skills.py
+new file mode 100644
+index 0000000..ad26890
+--- /dev/null
++++ b/src/recommendation/build_career_skills.py
+@@ -0,0 +1,96 @@
++"""Phase 5 step: build career skill profiles -> data/processed/career_skills.csv.
++
++    python src/recommendation/build_career_skills.py [--min-postings 30]
++
++Joins staging postings, weak career labels (Phase 3) and extracted skills (Phase 4) and
++writes one row per (career, skill) with ``frequency`` and ``importance`` (see
++profiles.py). This is the editable-data form of the career profiles that the engine reads;
++nothing about careers is hard-coded in the engine (explainability rule 7).
++
++Caveats: labels are weak title-derived labels, skills come from a rule extractor, and
++small corpora give lumpy shares. ``low_sample`` marks careers below ``--min-postings``.
++Standard library only.
++"""
++from __future__ import annotations
++
++import argparse
++import csv
++import sys
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parents[2]
++if str(ROOT) not in sys.path:
++    sys.path.insert(0, str(ROOT))
++
++from src.etl.common import (  # noqa: E402
++    CAREER_SKILL_COLUMNS, CAREER_SKILLS_CSV, JOB_SKILL_COLUMNS, JOB_SKILLS_CSV, LABEL_COLUMNS,
++    LABELS_CSV, STAGING_COLUMNS, STAGING_CSV, EtlError, read_csv, write_csv,
++)
++from src.nlp.skill_dictionary import CAREERS_CSV, SkillDictionary  # noqa: E402
++from src.nlp.skill_extractor import EXTRACTOR_METHOD  # noqa: E402
++from src.recommendation.profiles import DEFAULT_MIN_POSTINGS, CorpusCounts, postings_from_rows  # noqa: E402
++
++
++def career_names(path: Path = CAREERS_CSV) -> dict[str, str]:
++    with Path(path).open(newline="", encoding="utf-8") as fh:
++        return {r["career_id"]: r["career_name"] for r in csv.DictReader(fh)}
++
++
++def build(staging_rows: list[dict], label_rows: list[dict], job_skills_rows: list[dict],
++          min_postings: int = DEFAULT_MIN_POSTINGS, skills: SkillDictionary | None = None) -> list[dict]:
++    skills = skills or SkillDictionary.load()
++    staged = {r["job_id"] for r in staging_rows}
++    stale = [js["job_id"] for js in job_skills_rows if js["job_id"] not in staged]
++    if stale:
++        raise EtlError(f"job_skills.csv refers to {stale[0]}, which is not in staging; "
++                       "rerun extract_job_skills.py after build_staging.py")
++    postings = postings_from_rows(staging_rows, label_rows, job_skills_rows)
++    if not postings:
++        raise EtlError("no labeled postings; nothing to build career profiles from")
++    counts = CorpusCounts(postings, career_names(), min_postings)
++    rows: list[dict] = []
++    for cid, prof in counts.profiles().items():
++        for sid, st in sorted(prof.skills.items(), key=lambda kv: (-kv[1].importance, kv[0])):
++            sk = skills.skills[sid]
++            rows.append({
++                "career_id": cid, "career_name": prof.career_name, "skill_id": sid,
++                "canonical_name": sk.canonical_name, "category": sk.category,
++                "postings_with_skill": st.count, "postings_in_career": prof.postings,
++                "frequency": f"{st.frequency:.4f}", "importance": f"{st.importance:.4f}",
++                "low_sample": prof.low_sample, "synthetic_postings_in_career": prof.synthetic_postings,
++                "method": f"job_skills:{EXTRACTOR_METHOD}",
++            })
++    return rows
++
++
++def main(argv: list[str] | None = None) -> int:
++    ap = argparse.ArgumentParser(description="Build career skill profiles.")
++    ap.add_argument("--staging", default=str(STAGING_CSV))
++    ap.add_argument("--labels", default=str(LABELS_CSV))
++    ap.add_argument("--job-skills", default=str(JOB_SKILLS_CSV))
++    ap.add_argument("--out", default=str(CAREER_SKILLS_CSV))
++    ap.add_argument("--min-postings", type=int, default=DEFAULT_MIN_POSTINGS,
++                    help="careers with fewer postings are flagged low_sample")
++    args = ap.parse_args(argv)
++    try:
++        rows = build(read_csv(Path(args.staging), STAGING_COLUMNS),
++                     read_csv(Path(args.labels), LABEL_COLUMNS),
++                     read_csv(Path(args.job_skills), JOB_SKILL_COLUMNS), args.min_postings)
++        write_csv(Path(args.out), CAREER_SKILL_COLUMNS, rows)
++    except (EtlError, ValueError, OSError) as e:
++        print(f"CAREER PROFILES FAILED: {e}")
++        return 1
++    per = {}
++    for r in rows:
++        per[r["career_id"]] = (r["career_name"], int(r["postings_in_career"]), r["low_sample"])
++    print("CAREER PROFILES COMPLETE")
++    print(f"  careers: {len(per)}  rows: {len(rows)}")
++    for cid, (name, n, low) in sorted(per.items()):
++        print(f"    {cid} {name}: {n} postings" + ("  (low sample)" if low == "true" else ""))
++    print("  NOTE: derived from weak title labels and extracted skills; sample statistics only.")
++    print(f"  output: {args.out}")
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/src/recommendation/engine.py b/src/recommendation/engine.py
+new file mode 100644
+index 0000000..d0dfd79
+--- /dev/null
++++ b/src/recommendation/engine.py
+@@ -0,0 +1,267 @@
++"""Career recommendation and skill-gap engine (Phase 5).
++
++Models (docs/evaluation_strategy.md section 4, increasing sophistication):
++
++* ``popularity_v0``        baseline 1: the same ranking for everyone, by posting volume.
++* ``keyword_overlap_v0``   baseline 2: how many of the profile's skills the career mentions.
++* ``tfidf_cosine_v0``      baseline 3: TF-IDF cosine between profile and career skill vector.
++* ``weighted_coverage_v1`` the engine: the share of a career's total skill importance that
++                           the profile already covers (see ``score_weighted_coverage``).
++
++Scores are *compatibility scores*, never probabilities of being hired (explainability
++rule 1). Every recommendation lists matched and missing skills with the career's
++importance and observed frequency (rule 2); frequencies are sample statistics (rule 3).
++The engine has no built-in career or skill catalog: it reads career profiles produced
++from data (profiles.py) and prerequisite pairs from reference data (rule 7).
++
++Standard library only.
++"""
++from __future__ import annotations
++
++import csv
++import math
++from dataclasses import dataclass, field
++from pathlib import Path
++
++from src.nlp.skill_dictionary import SkillDictionary
++from src.recommendation.profiles import CareerProfile
++
++MODEL_VERSION = "weighted_coverage_v1"
++BASELINE_MODELS = ("popularity_v0", "keyword_overlap_v0", "tfidf_cosine_v0")
++
++DISCLAIMER = ("Scores show how closely your current skills match each career's typical "
++              "requirements in our sample of job postings. They do not predict whether you "
++              "will be hired.")
++DATA_LIMITS = ("Demand figures are sample statistics from the acquired job corpus, not a "
++               "definitive ranking of the Kenyan labour market.")
++
++ROOT = Path(__file__).resolve().parents[2]
++PREREQUISITES_CSV = ROOT / "data" / "reference" / "skill_prerequisites.csv"
++
++
++# ------------------------------------------------------------------ scoring models
++Scores = dict  # career_id -> float
++
++
++def score_popularity(skills: frozenset, profiles: dict) -> Scores:
++    total = sum(p.postings for p in profiles.values()) or 1
++    return {cid: p.postings / total for cid, p in profiles.items()}
++
++
++def score_keyword_overlap(skills: frozenset, profiles: dict) -> Scores:
++    if not skills:
++        return {cid: 0.0 for cid in profiles}
++    return {cid: len(skills & set(p.skills)) / len(skills) for cid, p in profiles.items()}
++
++
++def score_tfidf_cosine(skills: frozenset, profiles: dict) -> Scores:
++    n_careers = len(profiles)
++    df: dict[str, int] = {}
++    for p in profiles.values():
++        for sid in p.skills:
++            df[sid] = df.get(sid, 0) + 1
++    idf = {sid: math.log((n_careers + 1) / (d + 1)) + 1.0 for sid, d in df.items()}
++    query = {sid: idf[sid] for sid in skills if sid in idf}
++    q_norm = math.sqrt(sum(v * v for v in query.values()))
++    out: Scores = {}
++    for cid, p in profiles.items():
++        vec = {sid: st.frequency * idf[sid] for sid, st in p.skills.items()}
++        v_norm = math.sqrt(sum(v * v for v in vec.values()))
++        dot = sum(w * vec.get(sid, 0.0) for sid, w in query.items())
++        out[cid] = dot / (q_norm * v_norm) if q_norm and v_norm else 0.0
++    return out
++
++
++def score_weighted_coverage(skills: frozenset, profiles: dict) -> Scores:
++    """Compatibility = sum of career importance over the skills you have, divided by the sum
++    over all the career's skills: "how much of what this career typically asks for (weighted
++    by importance) do you already cover". Range 0 to 1; 1 means every skill the sampled
++    postings ask for. Skills you have that the career does not ask for do not count for or
++    against it."""
++    out: Scores = {}
++    for cid, p in profiles.items():
++        total = sum(st.importance for st in p.skills.values())
++        have = sum(st.importance for sid, st in p.skills.items() if sid in skills)
++        out[cid] = have / total if total else 0.0
++    return out
++
++
++MODELS = {
++    "popularity_v0": score_popularity,
++    "keyword_overlap_v0": score_keyword_overlap,
++    "tfidf_cosine_v0": score_tfidf_cosine,
++    MODEL_VERSION: score_weighted_coverage,
++}
++
++
++def rank_careers(scores: Scores, profiles: dict) -> list[str]:
++    """Deterministic ranking: score, then posting volume, then career_id."""
++    return sorted(scores, key=lambda c: (-round(scores[c], 12), -profiles[c].postings, c))
++
++
++# ------------------------------------------------------------------ evidence
++@dataclass(frozen=True)
++class SkillEvidence:
++    skill_id: str
++    canonical_name: str
++    display_name: str
++    category: str
++    frequency: float
++    importance: float
++    postings_with_skill: int
++    postings: int
++    reason: str
++
++
++@dataclass(frozen=True)
++class CareerMatch:
++    rank: int
++    career_id: str
++    career_name: str
++    score: float
++    postings: int
++    low_sample: bool
++    matched: list
++    missing: list
++    model_version: str
++    tied_with: int = 0      # other careers with exactly the same score (rank order among them is arbitrary)
++
++
++def _evidence(sid: str, prof: CareerProfile, dictionary: SkillDictionary, have: bool) -> SkillEvidence:
++    st, sk = prof.skills[sid], dictionary.skills[sid]
++    share = f"appears in {st.frequency:.0%} of {prof.postings} sampled {prof.career_name} postings"
++    reason = f"{'you have it; ' if have else ''}{share} (importance {st.importance:.2f})"
++    return SkillEvidence(sid, sk.canonical_name, sk.display_name, sk.category, st.frequency,
++                         st.importance, st.count, prof.postings, reason)
++
++
++def _by_weight(profile: CareerProfile, ids) -> list[str]:
++    return sorted(ids, key=lambda s: (-profile.skills[s].importance, -profile.skills[s].frequency, s))
++
++
++def recommend(skill_ids, profiles: dict, dictionary: SkillDictionary,
++              model: str = MODEL_VERSION, top: int | None = None) -> list[CareerMatch]:
++    """Rank careers for a profile and attach matched/missing skill evidence to each."""
++    if model not in MODELS:
++        raise ValueError(f"unknown model {model!r}; choose from {sorted(MODELS)}")
++    skills = frozenset(skill_ids)
++    scores = MODELS[model](skills, profiles)
++    out = []
++    rounded = [round(v, 9) for v in scores.values()]
++    for rank, cid in enumerate(rank_careers(scores, profiles), 1):
++        prof = profiles[cid]
++        matched = _by_weight(prof, [s for s in prof.skills if s in skills])
++        missing = _by_weight(prof, [s for s in prof.skills if s not in skills])
++        out.append(CareerMatch(
++            rank, cid, prof.career_name, scores[cid], prof.postings, prof.low_sample,
++            [_evidence(s, prof, dictionary, True) for s in matched],
++            [_evidence(s, prof, dictionary, False) for s in missing], model,
++            rounded.count(round(scores[cid], 9)) - 1))
++    return out[:top] if top else out
++
++
++# ------------------------------------------------------------------ skill-gap analysis
++@dataclass(frozen=True)
++class GapItem:
++    priority: int
++    skill_id: str
++    canonical_name: str
++    display_name: str
++    importance: float
++    frequency: float
++    postings_with_skill: int
++    postings: int
++    requires: list = field(default_factory=list)   # [(display_name, you_have_it)]
++    reason: str = ""
++    resource: str | None = None                    # filled in by Phase 6 (learning resources)
++
++
++@dataclass(frozen=True)
++class GapReport:
++    career_id: str
++    career_name: str
++    postings: int
++    low_sample: bool
++    have: list
++    missing: list
++
++
++def load_prerequisites(path: Path | str | None, dictionary: SkillDictionary) -> dict[str, list[str]]:
++    """Read skill -> [prerequisite skills] from reference data; reject unknown names and cycles."""
++    p = Path(path) if path else PREREQUISITES_CSV
++    pre: dict[str, list[str]] = {}
++    with p.open(newline="", encoding="utf-8") as fh:
++        for r in csv.DictReader(fh):
++            a, b = dictionary.by_canonical.get(r["skill"]), dictionary.by_canonical.get(r["requires"])
++            if a is None or b is None:
++                raise ValueError(f"prerequisite row {r['skill']!r} -> {r['requires']!r}: unknown skill name")
++            if b.skill_id not in pre.setdefault(a.skill_id, []):
++                pre[a.skill_id].append(b.skill_id)
++    state: dict[str, int] = {}
++
++    def visit(s: str) -> None:
++        if state.get(s) == 1:
++            raise ValueError(f"prerequisite cycle through {dictionary.skills[s].canonical_name}")
++        if state.get(s) == 2:
++            return
++        state[s] = 1
++        for q in pre.get(s, []):
++            visit(q)
++        state[s] = 2
++
++    for s in list(pre):
++        visit(s)
++    return pre
++
++
++def gap_analysis(skill_ids, profile: CareerProfile, dictionary: SkillDictionary,
++                 prerequisites: dict[str, list[str]] | None = None) -> GapReport:
++    """Missing skills for one career, ordered by importance, then by observed frequency, with
++    prerequisites placed before the skills that build on them (when both are missing)."""
++    prerequisites = prerequisites or {}
++    skills = frozenset(skill_ids)
++    missing_ids = set(s for s in profile.skills if s not in skills)
++    base = _by_weight(profile, missing_ids)
++
++    order: list[str] = []
++    seen: set[str] = set()
++
++    def emit(s: str) -> None:
++        if s in seen:
++            return
++        seen.add(s)
++        for q in prerequisites.get(s, []):
++            if q in missing_ids:
++                emit(q)
++        order.append(s)
++
++    for s in base:
++        emit(s)
++
++    items = []
++    for i, s in enumerate(order, 1):
++        st = profile.skills[s]
++        reqs = [(dictionary.skills[q].display_name, q in skills) for q in prerequisites.get(s, [])]
++        reason = (f"appears in {st.frequency:.0%} of {profile.postings} sampled "
++                  f"{profile.career_name} postings (importance {st.importance:.2f})")
++        if reqs:
++            parts = [f"{n} ({'you have it' if ok else 'missing, learn first'})" for n, ok in reqs]
++            reason += "; builds on " + ", ".join(parts)
++        items.append(GapItem(i, s, dictionary.skills[s].canonical_name, dictionary.skills[s].display_name,
++                             st.importance, st.frequency,
++                             st.count, profile.postings, reqs, reason))
++    have = [_evidence(s, profile, dictionary, True) for s in _by_weight(profile, [s for s in profile.skills if s in skills])]
++    return GapReport(profile.career_id, profile.career_name, profile.postings, profile.low_sample, have, items)
++
++
++# ------------------------------------------------------------------ profile input
++def resolve_skills(raw_skills: list[str], dictionary: SkillDictionary) -> tuple[frozenset, list[str]]:
++    """Map free-text skill entries to skill ids. Unrecognised entries are returned, not dropped silently."""
++    ids, unknown = set(), []
++    for raw in raw_skills:
++        sk = dictionary.lookup(raw)
++        if sk is None:
++            unknown.append(raw)
++        else:
++            ids.add(sk.skill_id)
++    return frozenset(ids), unknown
+diff --git a/src/recommendation/profiles.py b/src/recommendation/profiles.py
+new file mode 100644
+index 0000000..c11bb6d
+--- /dev/null
++++ b/src/recommendation/profiles.py
+@@ -0,0 +1,124 @@
++"""Career skill profiles built from observed postings (Phase 5).
++
++A career profile answers "what do sampled postings for this career ask for?":
++
++* ``frequency``  = share of the career's postings that mention the skill;
++* ``importance`` = mean over the career's postings of the posting-level importance
++  (1.0 normally, 0.5 where the posting says the skill is "a plus"; 0 where absent).
++  It is therefore always <= frequency and in [0, 1].
++
++Postings are assigned to careers by the Phase 3 weak title labels; skills come from the
++Phase 4 extractor. Both are imperfect, and with small corpora the shares are lumpy: every
++profile carries ``postings`` and ``low_sample`` so callers can say so (explainability
++rule 3). Standard library only.
++"""
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++
++DEFAULT_MIN_POSTINGS = 30  # careers with fewer postings are flagged low_sample
++
++
++@dataclass(frozen=True)
++class Posting:
++    job_id: str
++    career_id: str
++    skills: dict          # skill_id -> posting-level importance in (0, 1]
++    synthetic: bool = False
++
++
++@dataclass(frozen=True)
++class SkillStat:
++    count: int            # postings mentioning the skill
++    frequency: float      # count / postings
++    importance: float     # sum of posting importance / postings
++
++
++@dataclass
++class CareerProfile:
++    career_id: str
++    career_name: str
++    postings: int
++    synthetic_postings: int
++    low_sample: bool
++    skills: dict = field(default_factory=dict)   # skill_id -> SkillStat
++
++
++class CorpusCounts:
++    """Per-career counts from which profiles are derived; supports leave-one-out."""
++
++    def __init__(self, postings: list[Posting], career_names: dict[str, str],
++                 min_postings: int = DEFAULT_MIN_POSTINGS):
++        self.career_names = career_names
++        self.min_postings = min_postings
++        self.n: dict[str, int] = {}
++        self.syn: dict[str, int] = {}
++        self.count: dict[str, dict[str, int]] = {}
++        self.imp: dict[str, dict[str, float]] = {}
++        for p in postings:
++            self._add(p, +1)
++
++    def _add(self, p: Posting, sign: int) -> None:
++        c = p.career_id
++        self.n[c] = self.n.get(c, 0) + sign
++        self.syn[c] = self.syn.get(c, 0) + sign * int(p.synthetic)
++        cc, ii = self.count.setdefault(c, {}), self.imp.setdefault(c, {})
++        for sid, w in p.skills.items():
++            cc[sid] = cc.get(sid, 0) + sign
++            ii[sid] = ii.get(sid, 0.0) + sign * w
++
++    def profile(self, career_id: str, exclude: Posting | None = None) -> CareerProfile | None:
++        """Profile of one career, optionally without one posting. None if no postings remain."""
++        n, syn = self.n.get(career_id, 0), self.syn.get(career_id, 0)
++        cc, ii = self.count.get(career_id, {}), self.imp.get(career_id, {})
++        if exclude is not None and exclude.career_id == career_id:
++            n, syn = n - 1, syn - int(exclude.synthetic)
++            cc, ii = dict(cc), dict(ii)
++            for sid, w in exclude.skills.items():
++                cc[sid] -= 1
++                ii[sid] -= w
++        if n <= 0:
++            return None
++        skills = {sid: SkillStat(c, c / n, round(ii[sid], 9) / n)
++                  for sid, c in cc.items() if c > 0}
++        return CareerProfile(career_id, self.career_names.get(career_id, career_id), n, syn,
++                             n < self.min_postings, skills)
++
++    def profiles(self, exclude: Posting | None = None) -> dict[str, CareerProfile]:
++        out = {}
++        for cid in sorted(self.n):
++            prof = self.profile(cid, exclude)
++            if prof is not None:
++                out[cid] = prof
++        return out
++
++
++def postings_from_rows(staging_rows: list[dict], label_rows: list[dict],
++                       job_skills_rows: list[dict]) -> list[Posting]:
++    """Join staging, weak labels and extracted skills into Postings (labeled ones only)."""
++    label_by_job = {l["job_id"]: l for l in label_rows}
++    skills_by_job: dict[str, dict] = {}
++    for js in job_skills_rows:
++        skills_by_job.setdefault(js["job_id"], {})[js["skill_id"]] = float(js["importance"])
++    out = []
++    for r in sorted(staging_rows, key=lambda r: r["job_id"]):
++        label = label_by_job.get(r["job_id"])
++        if not label or not label["career_id"]:
++            continue
++        out.append(Posting(r["job_id"], label["career_id"], skills_by_job.get(r["job_id"], {}),
++                           r["is_synthetic"] == "true"))
++    return out
++
++
++def profiles_from_career_skill_rows(rows: list[dict]) -> dict[str, CareerProfile]:
++    """Rebuild profiles from career_skills.csv rows."""
++    out: dict[str, CareerProfile] = {}
++    for r in rows:
++        prof = out.get(r["career_id"])
++        if prof is None:
++            prof = out[r["career_id"]] = CareerProfile(
++                r["career_id"], r["career_name"], int(r["postings_in_career"]),
++                int(r["synthetic_postings_in_career"]), r["low_sample"] == "true")
++        prof.skills[r["skill_id"]] = SkillStat(
++            int(r["postings_with_skill"]), float(r["frequency"]), float(r["importance"]))
++    return out
+diff --git a/src/recommendation/recommend.py b/src/recommendation/recommend.py
+new file mode 100644
+index 0000000..68d224c
+--- /dev/null
++++ b/src/recommendation/recommend.py
+@@ -0,0 +1,160 @@
++"""Recommend careers and show the skill gap for one graduate profile (Phase 5).
++
++    python src/recommendation/recommend.py                       # uses the demo profile
++    python src/recommendation/recommend.py --profile my.json --target CA03
++    python src/recommendation/recommend.py --expect-top CA01     # exit 2 if the top career differs
++
++Reads ``data/processed/career_skills.csv`` (build it with build_career_skills.py) and a
++profile JSON (see data/reference/demo_profile.json). Writes every ranked career to
++``data/processed/recommendations.csv`` with ``model_version`` and ``created_at``
++(explainability rule 5) and the full explanation to ``data/processed/recommendations.json``.
++Standard library only.
++"""
++from __future__ import annotations
++
++import argparse
++import json
++import sys
++from dataclasses import asdict
++from datetime import datetime, timezone
++from pathlib import Path
++
++ROOT = Path(__file__).resolve().parents[2]
++if str(ROOT) not in sys.path:
++    sys.path.insert(0, str(ROOT))
++
++from src.etl.common import (  # noqa: E402
++    CAREER_SKILL_COLUMNS, CAREER_SKILLS_CSV, RECOMMENDATION_COLUMNS, RECOMMENDATIONS_CSV,
++    EtlError, read_csv, write_csv,
++)
++from src.nlp.skill_dictionary import SkillDictionary  # noqa: E402
++from src.recommendation.engine import (  # noqa: E402
++    DATA_LIMITS, DISCLAIMER, MODEL_VERSION, MODELS, PREREQUISITES_CSV, gap_analysis,
++    load_prerequisites, recommend, resolve_skills,
++)
++from src.recommendation.profiles import profiles_from_career_skill_rows  # noqa: E402
++
++DEFAULT_PROFILE = ROOT / "data" / "reference" / "demo_profile.json"
++RECOMMENDATIONS_JSON = ROOT / "data" / "processed" / "recommendations.json"
++
++
++def load_profile(path: Path | str) -> dict:
++    prof = json.loads(Path(path).read_text(encoding="utf-8"))
++    for key in ("profile_id", "skills"):
++        if key not in prof:
++            raise ValueError(f"profile file is missing '{key}'")
++    if not isinstance(prof["skills"], list):
++        raise ValueError("profile 'skills' must be a list of skill names")
++    return prof
++
++
++def run(profile: dict, career_skill_rows: list[dict], *, model: str = MODEL_VERSION,
++        target: str | None = None, top: int = 5, prerequisites_path: Path | str | None = None,
++        now: datetime | None = None, dictionary: SkillDictionary | None = None) -> dict:
++    """Compute recommendations and the gap report. Returns a JSON-serialisable result dict."""
++    dictionary = dictionary or SkillDictionary.load()
++    profiles = profiles_from_career_skill_rows(career_skill_rows)
++    if not profiles:
++        raise EtlError("career_skills.csv has no career profiles")
++    skills, unknown = resolve_skills(profile["skills"], dictionary)
++    if not skills:
++        raise ValueError("none of the profile's skills are in the skill taxonomy; nothing to match")
++    prereq = load_prerequisites(prerequisites_path or PREREQUISITES_CSV, dictionary)
++    created = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
++
++    matches = recommend(skills, profiles, dictionary, model)
++    target_id = target or profile.get("target_career") or matches[0].career_id
++    if target_id not in profiles:
++        raise ValueError(f"target career {target_id!r} has no profile (careers with data: {sorted(profiles)})")
++    gap = gap_analysis(skills, profiles[target_id], dictionary, prereq)
++    return {
++        "profile_id": profile["profile_id"],
++        "model_version": model,
++        "created_at": created,
++        "recognized_skills": sorted(dictionary.skills[s].display_name for s in skills),
++        "unrecognized_skills": unknown,
++        "target_career": target_id,
++        "target_source": "requested" if (target or profile.get("target_career")) else "top recommendation",
++        "recommendations": [asdict(m) for m in matches],
++        "top_n": top,
++        "gap": asdict(gap),
++        "disclaimer": DISCLAIMER,
++        "data_limits": DATA_LIMITS,
++    }
++
++
++def recommendation_rows(result: dict) -> list[dict]:
++    rows = []
++    for m in result["recommendations"]:
++        rows.append({
++            "recommendation_id": f"{result['profile_id']}:{result['model_version']}:{m['career_id']}:{result['created_at']}",
++            "profile_id": result["profile_id"], "career_id": m["career_id"], "rank": m["rank"],
++            "score": f"{m['score']:.4f}", "model_version": result["model_version"],
++            "created_at": result["created_at"], "matched_skills": len(m["matched"]),
++            "missing_skills": len(m["missing"]), "postings_in_career": m["postings"],
++            "low_sample": m["low_sample"],
++        })
++    return rows
++
++
++def render(result: dict) -> str:
++    out = [f"Profile {result['profile_id']}: {', '.join(result['recognized_skills'])}"]
++    if result["unrecognized_skills"]:
++        out.append(f"  Not recognised (ignored): {', '.join(result['unrecognized_skills'])}")
++    out.append(f"\nCareer matches by compatibility score (model {result['model_version']}):")
++    for m in result["recommendations"][: result["top_n"]]:
++        flag = f"  [low sample: {m['postings']} postings]" if m["low_sample"] else f"  [{m['postings']} postings]"
++        if m["tied_with"]:
++            flag += f"  [tied with {m['tied_with']} other career(s): order among them is arbitrary]"
++        out.append(f"{m['rank']}. {m['career_name']} - {m['score']:.0%} compatibility{flag}")
++        matched = ", ".join(f"{e['display_name']} ({e['frequency']:.0%})" for e in m["matched"][:4]) or "none"
++        missing = ", ".join(f"{e['display_name']} ({e['frequency']:.0%})" for e in m["missing"][:3]) or "none"
++        out.append(f"   Matched: {matched}")
++        out.append(f"   Potential gaps: {missing}")
++    gap = result["gap"]
++    out.append(f"\nSkill gap for {gap['career_name']} ({result['target_source']}):")
++    out.append("  Already have: " + (", ".join(e["display_name"] for e in gap["have"]) or "none"))
++    if gap["missing"]:
++        out.append("  Priority: " + " -> ".join(g["display_name"] for g in gap["missing"]))
++        for g in gap["missing"][:6]:
++            out.append(f"    {g['priority']}. {g['display_name']}: {g['reason']}")
++    else:
++        out.append("  No gaps against this career's sampled requirements.")
++    out.append("  (Learning resources for each gap arrive in Phase 6.)")
++    out.append(f"\n{result['disclaimer']}\n{result['data_limits']}")
++    return "\n".join(out)
++
++
++def main(argv: list[str] | None = None) -> int:
++    ap = argparse.ArgumentParser(description="Career recommendations and skill gap for a profile.")
++    ap.add_argument("--profile", default=str(DEFAULT_PROFILE))
++    ap.add_argument("--career-skills", default=str(CAREER_SKILLS_CSV))
++    ap.add_argument("--model", default=MODEL_VERSION, choices=sorted(MODELS))
++    ap.add_argument("--target", default=None, help="career_id for the gap analysis (default: top match)")
++    ap.add_argument("--top", type=int, default=5)
++    ap.add_argument("--prerequisites", default=str(PREREQUISITES_CSV))
++    ap.add_argument("--out", default=str(RECOMMENDATIONS_CSV))
++    ap.add_argument("--json", default=str(RECOMMENDATIONS_JSON))
++    ap.add_argument("--expect-top", default=None, help="career_id the top match must be (exit 2 if not)")
++    args = ap.parse_args(argv)
++    try:
++        profile = load_profile(args.profile)
++        rows = read_csv(Path(args.career_skills), CAREER_SKILL_COLUMNS)
++        result = run(profile, rows, model=args.model, target=args.target, top=args.top,
++                     prerequisites_path=args.prerequisites)
++        write_csv(Path(args.out), RECOMMENDATION_COLUMNS, recommendation_rows(result))
++        Path(args.json).parent.mkdir(parents=True, exist_ok=True)
++        Path(args.json).write_text(json.dumps(result, indent=2), encoding="utf-8")
++    except (EtlError, ValueError, OSError, json.JSONDecodeError) as e:
++        print(f"RECOMMENDATION FAILED: {e}")
++        return 1
++    print(render(result))
++    top = result["recommendations"][0]["career_id"]
++    if args.expect_top and top != args.expect_top:
++        print(f"\nEXPECTATION FAILED: top career is {top}, expected {args.expect_top}")
++        return 2
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/tests/test_phase5_recommendation.py b/tests/test_phase5_recommendation.py
+new file mode 100644
+index 0000000..5192c6d
+--- /dev/null
++++ b/tests/test_phase5_recommendation.py
+@@ -0,0 +1,248 @@
++"""Phase 5 gate tests: career profiles, scoring models, gap analysis, evaluation, CLI.
++
++Three test functions. The README gates are cumulative; Phases 2-4 use nine and this phase
++adds three.
++"""
++from __future__ import annotations
++
++import csv
++import json
++import math
++import re
++from datetime import datetime, timezone
++from pathlib import Path
++
++import pytest
++
++from src.etl import build_labels, build_staging
++from src.etl.common import CAREER_SKILL_COLUMNS, RECOMMENDATION_COLUMNS, EtlError
++from src.evaluation import recommendation_eval as ev
++from src.ingestion import job_api
++from src.nlp import extract_job_skills
++from src.nlp.skill_dictionary import SkillDictionary
++from src.recommendation import build_career_skills, recommend as rec
++from src.recommendation.engine import (
++    DATA_LIMITS, DISCLAIMER, MODEL_VERSION, MODELS, gap_analysis, load_prerequisites, rank_careers,
++    recommend, resolve_skills, score_keyword_overlap, score_popularity, score_tfidf_cosine,
++    score_weighted_coverage,
++)
++from src.recommendation.profiles import CorpusCounts, Posting
++
++ROOT = Path(__file__).resolve().parents[1]
++T0 = datetime(2026, 10, 14, 9, 0, 0, tzinfo=timezone.utc)
++SD = SkillDictionary.load()
++ID = lambda name: SD.by_canonical[name].skill_id  # noqa: E731
++
++
++def _toy_postings() -> list[Posting]:
++    sql, xl, py, pd_ = ID("sql"), ID("excel"), ID("python"), ID("pandas")
++    return [
++        Posting("a1", "CA01", {sql: 1.0, xl: 1.0}),
++        Posting("a2", "CA01", {sql: 1.0, xl: 0.5}),
++        Posting("a3", "CA01", {sql: 1.0}),
++        Posting("a4", "CA01", {sql: 1.0, xl: 1.0}),
++        Posting("b1", "CA03", {sql: 1.0, py: 1.0}),
++        Posting("b2", "CA03", {py: 1.0, pd_: 1.0}),
++    ]
++
++
++def test_profiles_scoring_models_and_gap_analysis(tmp_path):
++    names = {"CA01": "Data Analyst", "CA03": "Data Engineer"}
++    postings = _toy_postings()
++    counts = CorpusCounts(postings, names, min_postings=3)
++    profiles = counts.profiles()
++    sql, xl, py, pd_ = ID("sql"), ID("excel"), ID("python"), ID("pandas")
++
++    # Profile arithmetic checked by hand: excel is in 3 of 4 DA postings, one of them "a plus".
++    da = profiles["CA01"]
++    assert (da.postings, da.low_sample) == (4, False) and profiles["CA03"].low_sample is True
++    assert (da.skills[sql].frequency, da.skills[sql].importance) == (1.0, 1.0)
++    assert da.skills[xl].frequency == 0.75 and da.skills[xl].importance == pytest.approx(2.5 / 4)
++    assert all(st.importance <= st.frequency for p in profiles.values() for st in p.skills.values())
++
++    # Leave-one-out equals a profile built from the remaining postings (independent rebuild).
++    held = postings[1]
++    rebuilt = CorpusCounts([p for p in postings if p is not held], names, 3).profiles()
++    loo = counts.profiles(exclude=held)
++    assert {c: {s: (st.count, round(st.frequency, 9), round(st.importance, 9)) for s, st in p.skills.items()}
++            for c, p in loo.items()} == \
++           {c: {s: (st.count, round(st.frequency, 9), round(st.importance, 9)) for s, st in p.skills.items()}
++            for c, p in rebuilt.items()}
++    assert counts.profiles(exclude=postings[4])["CA03"].postings == 1  # held-out career keeps its other posting
++
++    # Scoring models by hand. DA importance mass: sql 1 + excel 0.625 = 1.625; DE: sql .5 + python 1 + pandas .5 = 2.0
++    have = frozenset({sql, xl})
++    wc = score_weighted_coverage(have, profiles)
++    assert wc["CA01"] == pytest.approx(1.0) and wc["CA03"] == pytest.approx(0.5 / 2.0)
++    assert score_weighted_coverage(frozenset({sql}), profiles)["CA01"] == pytest.approx(1 / 1.625)
++    assert score_weighted_coverage(frozenset(), profiles) == {"CA01": 0.0, "CA03": 0.0}
++    assert score_popularity(have, profiles) == {"CA01": pytest.approx(4 / 6), "CA03": pytest.approx(2 / 6)}
++    assert score_popularity(frozenset(), profiles) == score_popularity(frozenset({py}), profiles)  # profile-blind
++    ko = score_keyword_overlap(have, profiles)
++    assert ko == {"CA01": 1.0, "CA03": 0.5}
++    tf = score_tfidf_cosine(have, profiles)
++    assert all(0.0 <= v <= 1.0 + 1e-9 for v in tf.values()) and tf["CA01"] > tf["CA03"]
++    # TF-IDF cosine worked out by hand: 2 careers; sql is in both (idf 1), excel/python/pandas in one
++    # (idf ln(3/2)+1). Query = {sql, excel}; career vectors use posting frequency x idf.
++    i1, i2 = 1.0, math.log(3 / 2) + 1
++    q_norm = math.sqrt(i1 ** 2 + i2 ** 2)
++    v1 = {"sql": 1.0 * i1, "excel": 0.75 * i2}
++    v3 = {"sql": 0.5 * i1, "python": 1.0 * i2, "pandas": 0.5 * i2}
++    assert tf["CA01"] == pytest.approx((1 * v1["sql"] + i2 * v1["excel"]) / (q_norm * math.sqrt(sum(x * x for x in v1.values()))))
++    assert tf["CA03"] == pytest.approx((1 * v3["sql"]) / (q_norm * math.sqrt(sum(x * x for x in v3.values()))))
++    assert score_tfidf_cosine(frozenset({ID("kafka")}), profiles) == {"CA01": 0.0, "CA03": 0.0}
++
++    # Ranking, ties and evidence. Python-only profile: DA has no python, DE does.
++    r = recommend({py}, profiles, SD)
++    assert [m.career_id for m in r] == ["CA03", "CA01"] and r[0].score > r[1].score == 0.0
++    tied = recommend(frozenset(), profiles, SD)                      # all scores 0 -> arbitrary order, flagged
++    assert [m.tied_with for m in tied] == [1, 1] and tied[0].career_id == "CA01"  # volume breaks the tie
++    top = recommend(have, profiles, SD)[0]
++    assert [e.canonical_name for e in top.matched] == ["sql", "excel"]            # sorted by importance
++    assert top.matched[0].reason.startswith("you have it; appears in 100% of 4 sampled Data Analyst postings")
++    assert top.missing == [] and top.model_version == MODEL_VERSION
++    de_missing = recommend(have, profiles, SD)[1].missing
++    assert [e.canonical_name for e in de_missing] == ["python", "pandas"] and all(e.skill_id in SD.skills for e in de_missing)
++    with pytest.raises(ValueError, match="unknown model"):
++        recommend(have, profiles, SD, model="magic_v9")
++
++    # Gap analysis: prerequisites come first even when the dependent skill is more important.
++    prereq = load_prerequisites(None, SD)
++    assert prereq[ID("pandas")] == [ID("python")]
++    de = profiles["CA03"]
++    gap = gap_analysis({ID("sql")}, de, SD, prereq)
++    assert [g.canonical_name for g in gap.missing] == ["python", "pandas"]         # python (1.0) before pandas (.5)
++    boosted = CorpusCounts([Posting("x", "CA03", {py: 0.5, pd_: 1.0})], names, 1).profiles()["CA03"]
++    gap2 = gap_analysis(frozenset(), boosted, SD, prereq)
++    assert [g.canonical_name for g in gap2.missing] == ["python", "pandas"]         # pandas more important, python first
++    assert "missing, learn first" in gap2.missing[1].reason and gap2.missing[1].requires == [("Python", False)]
++    gap3 = gap_analysis({py}, boosted, SD, prereq)
++    assert [g.canonical_name for g in gap3.missing] == ["pandas"] and "Python (you have it)" in gap3.missing[0].reason
++    assert gap3.missing[0].resource is None                                         # resources arrive in Phase 6
++
++    # Reference-data validation and profile input handling.
++    bad = tmp_path / "pre.csv"
++    bad.write_text("skill,requires,rationale\npandas,python,x\npython,pandas,x\n")
++    with pytest.raises(ValueError, match="cycle"):
++        load_prerequisites(bad, SD)
++    bad.write_text("skill,requires,rationale\npandas,not_a_skill,x\n")
++    with pytest.raises(ValueError, match="unknown skill"):
++        load_prerequisites(bad, SD)
++    ids, unknown = resolve_skills(["MS Excel", "Postgres", "Underwater Basket Weaving", "excel"], SD)
++    assert ids == {ID("excel"), ID("postgresql")} and unknown == ["Underwater Basket Weaving"]
++
++
++def test_recommendation_metrics_and_evaluation_harness(tmp_path):
++    # Metric arithmetic: ranked A,B,C with B and C acceptable.
++    ranked, rel = ["A", "B", "C"], {"B", "C"}
++    assert ev.precision_at_k(ranked, rel, 3) == pytest.approx(2 / 3)
++    assert ev.recall_at_k(ranked, rel, 3) == 1.0 and ev.recall_at_k(ranked, rel, 1) == 0.0
++    ideal = 1 / math.log2(2) + 1 / math.log2(3)
++    assert ev.ndcg_at_k(ranked, rel, 3) == pytest.approx((1 / math.log2(3) + 1 / math.log2(4)) / ideal)
++    assert ev.ndcg_at_k(["B", "C", "A"], rel, 3) == pytest.approx(1.0)
++    assert ev.reciprocal_rank(ranked, rel) == 0.5 and ev.reciprocal_rank(ranked, {"Z"}) == 0.0
++    assert (ev.hit_at_k(ranked, rel, 1), ev.hit_at_k(ranked, rel, 3)) == (0.0, 1.0)
++    s = ev.summarize({"p1": ["A", "B"], "p2": ["B", "A"]}, {"p1": {"B"}, "p2": {"B"}, "p3": set()})
++    assert s["profiles"] == 2 and s["hit@1"] == 0.5 and s["mrr"] == 0.75   # p3 has no labels: excluded
++
++    # Gold profile file validation.
++    cids = {"CA01", "CA03"}
++    good = tmp_path / "gold.csv"
++    good.write_text("profile_id,skills,acceptable_careers,note\nP1,sql|excel,CA01,x\n")
++    assert ev.load_gold_profiles(good, SD, cids)[0]["acceptable"] == {"CA01"}
++    for body, msg in [("P1,not_a_skill,CA01,x", "unknown skill"), ("P1,sql,CA99,x", "acceptable_careers"),
++                      ("P1,sql,CA01,x\nP1,sql,CA01,y", "duplicate")]:
++        good.write_text("profile_id,skills,acceptable_careers,note\n" + body + "\n")
++        with pytest.raises(ValueError, match=msg):
++            ev.load_gold_profiles(good, SD, cids)
++    for real in (ROOT / "data" / "evaluation" / "profile_gold_dev.csv",):
++        careers = {r["career_id"] for r in csv.DictReader((ROOT / "data/external/career_taxonomy.csv").open())}
++        assert len(ev.load_gold_profiles(real, SD, careers)) >= 10
++
++    # Leave-one-out: a career whose only posting is held out cannot be evaluated and is skipped.
++    names = {"CA01": "Data Analyst", "CA03": "Data Engineer"}
++    posts = _toy_postings() + [Posting("c1", "CA05", {ID("pytorch"): 1.0})]
++    out = ev.evaluate_leave_one_out(posts, {**names, "CA05": "ML Engineer"}, keep_fraction=1.0, min_postings=1)
++    assert out["skipped_postings"] == 1 and set(out["models"]) == set(MODELS)
++    assert out["models"][MODEL_VERSION]["profiles"] == 6
++    # keep_fraction is deterministic and monotone in what it keeps.
++    assert [ev._keep("a1", "SK01", 1.0), ev._keep("a1", "SK01", 0.0)] == [True, False]
++    assert ev._keep("a1", "SK09", 0.6) == ev._keep("a1", "SK09", 0.6)
++
++
++def test_pipeline_cli_demo_gate_and_explainability_rules(tmp_path):
++    raw = tmp_path / "raw"
++    job_api.run("sample_fixture", out_dir=raw, now=T0)
++    f = {n: tmp_path / f"{n}.csv" for n in ("staging", "labels", "job_skills", "career_skills", "recs")}
++    assert build_staging.main(["--raw-dir", str(raw), "--out", str(f["staging"])]) == 0
++    assert build_labels.main(["--staging", str(f["staging"]), "--out", str(f["labels"])]) == 0
++    assert extract_job_skills.main(["--staging", str(f["staging"]), "--out", str(f["job_skills"])]) == 0
++    assert build_career_skills.main(["--staging", str(f["staging"]), "--labels", str(f["labels"]),
++                                     "--job-skills", str(f["job_skills"]), "--out", str(f["career_skills"])]) == 0
++    with f["career_skills"].open(newline="") as fh:
++        rows = list(csv.DictReader(fh))
++    assert list(rows[0]) == CAREER_SKILL_COLUMNS and {r["career_id"] for r in rows} == {f"CA{i:02d}" for i in range(1, 10)}
++    assert all(float(r["importance"]) <= float(r["frequency"]) <= 1 for r in rows)
++
++    # GATE: the demo profile ranks Data Analyst (CA01) first; a wrong expectation exits 2.
++    base = ["--career-skills", str(f["career_skills"]), "--out", str(f["recs"]), "--json", str(tmp_path / "r.json")]
++    assert rec.main(base + ["--expect-top", "CA01"]) == 0
++    assert rec.main(base + ["--expect-top", "CA03"]) == 2
++
++    # Stored recommendations carry model_version and creation time (rule 5), scores stay in [0, 1].
++    with f["recs"].open(newline="") as fh:
++        recs = list(csv.DictReader(fh))
++    assert list(recs[0]) == RECOMMENDATION_COLUMNS and [r["rank"] for r in recs] == [str(i) for i in range(1, 10)]
++    assert recs[0]["career_id"] == "CA01" and {r["model_version"] for r in recs} == {MODEL_VERSION}
++    assert all(re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", r["created_at"]) for r in recs)
++    assert all(0 <= float(r["score"]) <= 1 for r in recs)
++    assert [float(r["score"]) for r in recs] == sorted((float(r["score"]) for r in recs), reverse=True)
++
++    # Explainability rules: evidence, data limits, wording.
++    result = json.loads((tmp_path / "r.json").read_text())
++    assert result["disclaimer"] == DISCLAIMER and result["data_limits"] == DATA_LIMITS
++    first = result["recommendations"][0]
++    assert first["matched"] and first["missing"] and first["low_sample"] is True
++    assert all(e["reason"] and e["postings"] > 0 for e in first["matched"] + first["missing"])
++    assert result["gap"]["career_id"] == "CA01" and result["gap"]["missing"][0]["priority"] == 1
++    assert all(g["reason"] and g["resource"] is None for g in result["gap"]["missing"])
++    profile = rec.load_profile(rec.DEFAULT_PROFILE)
++    text = rec.render(rec.run(profile, rows, now=T0))
++    assert "compatibility" in text and DISCLAIMER in text and DATA_LIMITS in text
++    assert not re.search(r"probab|chance|likelihood|odds", text, re.I)
++    assert "Learning resources" in text and "[low sample: 4 postings]" in text
++
++    # Not hard-wired to Data Analyst: a DevOps-style profile and a security profile rank their own careers first.
++    devops = rec.run({"profile_id": "d", "skills": ["Docker", "Kubernetes", "CI/CD", "Linux", "Git", "Terraform"]}, rows)
++    assert devops["recommendations"][0]["career_id"] in {"CA06", "CA07"}
++    sec = rec.run({"profile_id": "s", "skills": ["SIEM", "incident response", "network security"]}, rows)
++    assert sec["recommendations"][0]["career_id"] == "CA09"
++    ignored = rec.run({"profile_id": "u", "skills": ["SQL", "Underwater Basket Weaving"]}, rows)
++    assert ignored["unrecognized_skills"] == ["Underwater Basket Weaving"]
++    assert "Not recognised (ignored): Underwater Basket Weaving" in rec.render(ignored)
++    explicit = rec.run({"profile_id": "t", "skills": ["SQL"]}, rows, target="CA03")
++    assert explicit["gap"]["career_id"] == "CA03" and explicit["target_source"] == "requested"
++
++    # Failure paths exit non-zero with a message instead of a traceback.
++    nothing = tmp_path / "none.json"
++    nothing.write_text(json.dumps({"profile_id": "n", "skills": ["Underwater Basket Weaving"]}))
++    assert rec.main(base + ["--profile", str(nothing)]) == 1
++    assert rec.main(base + ["--target", "CA42"]) == 1
++    assert rec.main(["--career-skills", str(tmp_path / "missing.csv"), "--out", str(f["recs"])]) == 1
++    with pytest.raises(EtlError, match="not in staging"):
++        build_career_skills.build(
++            list(csv.DictReader(f["staging"].open())), list(csv.DictReader(f["labels"].open())),
++            [{"job_id": "ghost:1", "skill_id": "SK01", "importance": "1.0"}])
++
++    # The evaluation script runs on the same data and reports all four models.
++    report = tmp_path / "eval.json"
++    assert ev.main(["--career-skills", str(f["career_skills"]), "--staging", str(f["staging"]),
++                    "--labels", str(f["labels"]), "--job-skills", str(f["job_skills"]), "--report", str(report)]) == 0
++    rep = json.loads(report.read_text())
++    assert set(rep["gold_profiles"]) == set(MODELS) and len(rep["leave_one_out"]) == 2
++    assert rep["gold_profiles"][MODEL_VERSION]["hit@1"] > rep["gold_profiles"]["popularity_v0"]["hit@1"]
++
++    # database/schema.sql mirrors the career_skills CSV contract.
++    ddl = (ROOT / "database" / "schema.sql").read_text()
++    body = re.search(r"CREATE TABLE IF NOT EXISTS staging\.career_skills \((.*?)\n\);", ddl, re.S).group(1)
++    assert [ln.split()[0] for ln in body.splitlines() if ln.strip()] == CAREER_SKILL_COLUMNS
+-- 
+2.43.0
+

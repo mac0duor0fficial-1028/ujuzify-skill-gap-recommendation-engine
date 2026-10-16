@@ -13,6 +13,8 @@ STAGING_CSV = ROOT / "data" / "interim" / "staging_jobs.csv"
 LABELS_CSV = ROOT / "data" / "processed" / "job_labels.csv"
 DEMAND_CSV = ROOT / "data" / "processed" / "skill_demand.csv"
 JOB_SKILLS_CSV = ROOT / "data" / "processed" / "job_skills.csv"
+CAREER_SKILLS_CSV = ROOT / "data" / "processed" / "career_skills.csv"
+RECOMMENDATIONS_CSV = ROOT / "data" / "processed" / "recommendations.csv"
 
 # Column contracts. database/schema.sql mirrors these (a test keeps them in sync).
 STAGING_COLUMNS = [
@@ -28,6 +30,15 @@ LABEL_COLUMNS = [
 JOB_SKILL_COLUMNS = [
     "job_id", "skill_id", "canonical_name", "importance", "requirement_level", "evidence",
     "rule", "mentions", "method", "is_synthetic",
+]
+CAREER_SKILL_COLUMNS = [
+    "career_id", "career_name", "skill_id", "canonical_name", "category", "postings_with_skill",
+    "postings_in_career", "frequency", "importance", "low_sample",
+    "synthetic_postings_in_career", "method",
+]
+RECOMMENDATION_COLUMNS = [
+    "recommendation_id", "profile_id", "career_id", "rank", "score", "model_version", "created_at",
+    "matched_skills", "missing_skills", "postings_in_career", "low_sample",
 ]
 DEMAND_COLUMNS = [
     "scope", "scope_name", "skill_id", "canonical_name", "category", "postings_with_skill",

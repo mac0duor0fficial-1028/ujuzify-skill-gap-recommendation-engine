@@ -4,9 +4,9 @@
 
 BEGIN;
 
-TRUNCATE analytics.skill_demand, curated.job_skills, curated.job_career_labels, curated.job_postings,
+TRUNCATE analytics.skill_demand, curated.career_skills, curated.job_skills, curated.job_career_labels, curated.job_postings,
          curated.skills, curated.careers,
-         staging.jobs, staging.job_labels, staging.job_skills, staging.skill_demand;
+         staging.jobs, staging.job_labels, staging.job_skills, staging.career_skills, staging.skill_demand;
 
 \copy curated.careers FROM 'data/external/career_taxonomy.csv' WITH (FORMAT csv, HEADER true)
 \copy curated.skills  FROM 'data/external/skill_taxonomy.csv'  WITH (FORMAT csv, HEADER true)
@@ -14,6 +14,7 @@ TRUNCATE analytics.skill_demand, curated.job_skills, curated.job_career_labels, 
 \copy staging.jobs         FROM 'data/interim/staging_jobs.csv'    WITH (FORMAT csv, HEADER true)
 \copy staging.job_labels   FROM 'data/processed/job_labels.csv'    WITH (FORMAT csv, HEADER true)
 \copy staging.job_skills   FROM 'data/processed/job_skills.csv'    WITH (FORMAT csv, HEADER true)
+\copy staging.career_skills FROM 'data/processed/career_skills.csv'  WITH (FORMAT csv, HEADER true)
 \copy staging.skill_demand FROM 'data/processed/skill_demand.csv'  WITH (FORMAT csv, HEADER true)
 
 INSERT INTO curated.job_postings
@@ -34,6 +35,13 @@ INSERT INTO curated.job_skills
 SELECT job_id, skill_id, importance, requirement_level, evidence, rule, mentions, method
 FROM staging.job_skills;
 
+INSERT INTO curated.career_skills
+    (career_id, skill_id, postings_with_skill, postings_in_career, frequency, importance,
+     low_sample, synthetic_postings_in_career, method)
+SELECT career_id, skill_id, postings_with_skill, postings_in_career, frequency, importance,
+       low_sample, synthetic_postings_in_career, method
+FROM staging.career_skills;
+
 INSERT INTO analytics.skill_demand
     (scope, scope_name, skill_id, postings_with_skill, postings_in_scope, share, low_sample,
      synthetic_postings_in_scope, method)
@@ -49,4 +57,5 @@ UNION ALL SELECT 'skills', count(*) FROM curated.skills
 UNION ALL SELECT 'job_postings', count(*) FROM curated.job_postings
 UNION ALL SELECT 'job_career_labels', count(*) FROM curated.job_career_labels
 UNION ALL SELECT 'job_skills', count(*) FROM curated.job_skills
+UNION ALL SELECT 'career_skills', count(*) FROM curated.career_skills
 UNION ALL SELECT 'skill_demand', count(*) FROM analytics.skill_demand;

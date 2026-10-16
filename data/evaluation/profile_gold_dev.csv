@@ -1,0 +1,14 @@
+profile_id,skills,acceptable_careers,note
+P01,excel|sql|statistics|communication|data_visualization,CA01|CA02,analyst-leaning
+P02,power_bi|dax|power_query|sql|data_visualization,CA02|CA01,BI-leaning
+P03,python|sql|airflow|postgresql|docker|etl,CA03,data-engineering-leaning
+P04,python|statistics|pandas|scikit_learn|machine_learning|numpy,CA04|CA05,data-science-leaning
+P05,python|pytorch|tensorflow|docker|model_deployment|kubernetes,CA05,ML-engineering-leaning
+P06,aws|azure|terraform|linux|networking,CA06|CA07,cloud-leaning
+P07,docker|kubernetes|ci_cd|linux|git|terraform,CA07|CA06,devops-leaning
+P08,javascript|react|typescript|rest_apis|git|django,CA08,software-leaning
+P09,siem|incident_response|network_security|vulnerability_assessment|cybersecurity_fundamentals,CA09,security-leaning
+P10,python|sql|excel,CA01|CA03|CA04,beginner with generic skills
+P11,sql|excel|power_bi,CA01|CA02,matches the Phase 1 doc example
+P12,linux|bash|git|python|docker,CA07|CA06|CA03,sysadmin-to-devops
+P13,python|sql|data_visualization|statistics|pandas,CA01|CA04,analyst or scientist

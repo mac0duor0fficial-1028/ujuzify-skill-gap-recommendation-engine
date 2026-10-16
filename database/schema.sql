@@ -4,8 +4,7 @@
 --
 -- Layers: staging (CSV mirrors, loaded as-is) -> curated (typed, constrained, FK-linked)
 --         -> analytics (derived statistics). Raw JSONL stays on disk in data/raw/.
--- profile_*, career_skills, learning_resources and recommendations tables are added by the
--- phases that produce that data (5-6).
+-- learning_resources arrives with Phase 6, profile and recommendation tables with Phase 7.
 
 CREATE SCHEMA IF NOT EXISTS staging;
 CREATE SCHEMA IF NOT EXISTS curated;
@@ -56,6 +55,21 @@ CREATE TABLE IF NOT EXISTS staging.job_skills (
     mentions          integer,
     method            text,
     is_synthetic      boolean
+);
+
+CREATE TABLE IF NOT EXISTS staging.career_skills (
+    career_id                    text,
+    career_name                  text,
+    skill_id                     text,
+    canonical_name               text,
+    category                     text,
+    postings_with_skill          integer,
+    postings_in_career           integer,
+    frequency                    numeric,
+    importance                   numeric,
+    low_sample                   boolean,
+    synthetic_postings_in_career integer,
+    method                       text
 );
 
 CREATE TABLE IF NOT EXISTS staging.skill_demand (
@@ -137,6 +151,30 @@ CREATE TABLE IF NOT EXISTS curated.job_skills (
     PRIMARY KEY (job_id, skill_id)
 );
 CREATE INDEX IF NOT EXISTS job_skills_skill_idx ON curated.job_skills (skill_id);
+
+-- Career skill profiles (Phase 5): what sampled postings for each career ask for.
+-- frequency = share of the career's postings mentioning the skill; importance = mean posting-level
+-- importance (<= frequency). Sample statistics, not a ranking of the labour market.
+CREATE TABLE IF NOT EXISTS curated.career_skills (
+    career_id                    text    NOT NULL REFERENCES curated.careers (career_id),
+    skill_id                     text    NOT NULL REFERENCES curated.skills (skill_id),
+    postings_with_skill          integer NOT NULL CHECK (postings_with_skill > 0),
+    postings_in_career           integer NOT NULL CHECK (postings_in_career > 0),
+    frequency                    numeric NOT NULL CHECK (frequency > 0 AND frequency <= 1),
+    importance                   numeric NOT NULL CHECK (importance > 0 AND importance <= 1),
+    low_sample                   boolean NOT NULL,
+    synthetic_postings_in_career integer NOT NULL CHECK (synthetic_postings_in_career >= 0),
+    method                       text    NOT NULL,
+    PRIMARY KEY (career_id, skill_id),
+    CHECK (importance <= frequency),
+    CHECK (postings_with_skill <= postings_in_career)
+);
+CREATE INDEX IF NOT EXISTS career_skills_skill_idx ON curated.career_skills (skill_id);
+
+-- NOT created here: graduate_profiles, profile_skills, recommendations (data_model.md). They hold
+-- user data and the audit trail of recommendations (model_version, created_at), so they must
+-- survive the full-refresh reload in load.sql. They arrive with the Phase 7 API that writes them;
+-- until then recommendations are stored in data/processed/recommendations.csv.
 
 -- ---------------------------------------------------------------- analytics
 -- scope is 'all' or a career_id. Shares are sample statistics from the acquired corpus,

@@ -1,0 +1,9 @@
+{
+  "profile_id": "demo_stats_graduate",
+  "education_level": "bachelor",
+  "field_of_study": "Statistics",
+  "experience_years": 0,
+  "target_career": null,
+  "skills": ["Excel", "SQL", "Statistics", "Data visualization", "Python", "Communication"],
+  "note": "Illustrative demo profile, not a real graduate."
+}

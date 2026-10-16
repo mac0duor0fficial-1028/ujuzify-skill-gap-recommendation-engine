@@ -14,12 +14,12 @@ An end-to-end machine learning system that helps Kenyan university/TVET graduate
 | 2 | Data acquisition: source registry, raw schema, ingestion, validation | Done (offline fixture; live API source needs configuration) |
 | 3 | ETL (staging, weak career labels, skill demand) and PostgreSQL schema | Done |
 | 4 | NLP skill extraction (rule extractor, evaluation harness, job_skills) | Done |
-| 5 | Career classification and skill-gap engine | Next |
-| 6 | Learning resources, FastAPI, Streamlit | Planned |
+| 5 | Career recommendation and skill-gap engine | Done |
+| 6 | Learning resources, FastAPI, Streamlit | Next |
 | 7 | Docker, CI/CD, monitoring, MLflow | Planned |
 | 8-12 | Advanced models, Power BI, AWS | Planned |
 
-Test gates (cumulative passing tests): 10 after Phase 5, 13 after Phase 6, 15 after Phase 7. Phase 0-1 add no pytest tests; Phase 2 adds 5, Phase 3 adds 2 and Phase 4 adds 2 (9 so far).
+Test gates (cumulative passing tests): 10 after Phase 5, 13 after Phase 6, 15 after Phase 7. Phase 0-1 add no pytest tests; Phase 2 adds 5, Phase 3 adds 2, Phase 4 adds 2 and Phase 5 adds 3 (12 so far; the README gate of 10 after Phase 5 is exceeded, so adjust it if you treat gates as exact).
 
 ## Quick start
 Target Python version: **3.13** (matches the Phase 7 Docker image).
@@ -37,6 +37,9 @@ python src/etl/build_labels.py
 python src/nlp/extract_job_skills.py   # Phase 4
 python src/etl/build_skill_demand.py --job-skills data/processed/job_skills.csv
 python src/evaluation/skill_extraction_eval.py
+python src/recommendation/build_career_skills.py   # Phase 5
+python src/recommendation/recommend.py --expect-top CA01
+python src/evaluation/recommendation_eval.py
 pytest
 ```
 
@@ -67,6 +70,7 @@ graduate-skill-gap-engine/
 - `docs/phase2_data_acquisition.md` — source registry, raw schema, ingestion and validation
 - `docs/phase3_etl.md` — staging, labels, skill demand and the PostgreSQL schema
 - `docs/phase4_nlp.md` — skill extractor, evaluation results and known failures
+- `docs/phase5_recommendation.md` — career models, skill-gap analysis, evaluation and its limits
 - `docs/data_model.md` — entities, fields, relationships
 - `docs/evaluation_strategy.md` — metrics and baselines
 - `docs/explainability_requirements.md` — explanation and scoring rules
