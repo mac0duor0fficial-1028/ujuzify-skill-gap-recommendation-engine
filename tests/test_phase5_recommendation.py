@@ -205,12 +205,12 @@ def test_pipeline_cli_demo_gate_and_explainability_rules(tmp_path):
     assert first["matched"] and first["missing"] and first["low_sample"] is True
     assert all(e["reason"] and e["postings"] > 0 for e in first["matched"] + first["missing"])
     assert result["gap"]["career_id"] == "CA01" and result["gap"]["missing"][0]["priority"] == 1
-    assert all(g["reason"] and g["resource"] is None for g in result["gap"]["missing"])
+    assert all(g["reason"] and (g["resource"] or g["resource_note"]) for g in result["gap"]["missing"])  # rule 6 (Phase 6)
     profile = rec.load_profile(rec.DEFAULT_PROFILE)
     text = rec.render(rec.run(profile, rows, now=T0))
     assert "compatibility" in text and DISCLAIMER in text and DATA_LIMITS in text
     assert not re.search(r"probab|chance|likelihood|odds", text, re.I)
-    assert "Learning resources" in text and "[low sample: 4 postings]" in text
+    assert "Learn: " in text and "[low sample: 4 postings]" in text
 
     # Not hard-wired to Data Analyst: a DevOps-style profile and a security profile rank their own careers first.
     devops = rec.run({"profile_id": "d", "skills": ["Docker", "Kubernetes", "CI/CD", "Linux", "Git", "Terraform"]}, rows)

@@ -15,11 +15,11 @@ An end-to-end machine learning system that helps Kenyan university/TVET graduate
 | 3 | ETL (staging, weak career labels, skill demand) and PostgreSQL schema | Done |
 | 4 | NLP skill extraction (rule extractor, evaluation harness, job_skills) | Done |
 | 5 | Career recommendation and skill-gap engine | Done |
-| 6 | Learning resources, FastAPI, Streamlit | Next |
-| 7 | Docker, CI/CD, monitoring, MLflow | Planned |
+| 6 | Learning resources, FastAPI, Streamlit | Done |
+| 7 | Docker, CI/CD, monitoring, MLflow | Next |
 | 8-12 | Advanced models, Power BI, AWS | Planned |
 
-Test gates (cumulative passing tests): 10 after Phase 5, 13 after Phase 6, 15 after Phase 7. Phase 0-1 add no pytest tests; Phase 2 adds 5, Phase 3 adds 2, Phase 4 adds 2 and Phase 5 adds 3 (12 so far; the README gate of 10 after Phase 5 is exceeded, so adjust it if you treat gates as exact).
+Test gates (cumulative passing tests): 10 after Phase 5, 13 after Phase 6, 15 after Phase 7. Phase 0-1 add no pytest tests; Phase 2 adds 5, Phase 3 adds 2, Phase 4 adds 2, Phase 5 adds 3 and Phase 6 adds 3 (15 so far; the gates of 10 after Phase 5 and 13 after Phase 6 are exceeded, so adjust them if you treat gates as exact).
 
 ## Quick start
 Target Python version: **3.13** (matches the Phase 7 Docker image).
@@ -27,7 +27,7 @@ Target Python version: **3.13** (matches the Phase 7 Docker image).
 ```bash
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-phase6.txt   # phase 6 adds the API and app
 cp .env.example .env               # then replace placeholder secrets
 python scripts/validate_taxonomies.py
 python src/ingestion/job_api.py        # Phase 2: offline sample source
@@ -40,6 +40,8 @@ python src/evaluation/skill_extraction_eval.py
 python src/recommendation/build_career_skills.py   # Phase 5
 python src/recommendation/recommend.py --expect-top CA01
 python src/evaluation/recommendation_eval.py
+uvicorn api.main:app --port 8000      # Phase 6 API (own terminal)
+streamlit run app/streamlit_app.py    # Phase 6 app (own terminal)
 pytest
 ```
 
@@ -71,6 +73,7 @@ graduate-skill-gap-engine/
 - `docs/phase3_etl.md` — staging, labels, skill demand and the PostgreSQL schema
 - `docs/phase4_nlp.md` — skill extractor, evaluation results and known failures
 - `docs/phase5_recommendation.md` — career models, skill-gap analysis, evaluation and its limits
+- `docs/phase6_product.md` — learning resources, API, web app and their limits
 - `docs/data_model.md` — entities, fields, relationships
 - `docs/evaluation_strategy.md` — metrics and baselines
 - `docs/explainability_requirements.md` — explanation and scoring rules

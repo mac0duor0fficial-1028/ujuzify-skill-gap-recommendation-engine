@@ -1,0 +1,1165 @@
+From 361e55c96afa069615c365cbcce57573202ecda1 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 17 Oct 2026 12:23:37 +0000
+Subject: [PATCH] Phase 6: learning resources, FastAPI service, Streamlit app
+
+- data/reference/learning_resources.csv (60 authored entries, 54 of 70 skills) and
+  src/recommendation/learning.py (validated catalog, priority/difficulty/free-only selection)
+- recommend.py: attaches a primary resource, alternatives or an explicit note to every gap;
+  --resources and --free-only options
+- api/main.py: /health, /skills, /careers, /recommend with strict validation, 503 when data
+  is not built, stateless, disclaimer and data limits in every response
+- src/product/client.py + app/streamlit_app.py: skill picker, ranked matches, evidence,
+  prioritised gaps with learning links, synthetic-data banner, escaped user text
+- scripts/smoke_phase6.sh: recommendation -> uvicorn -> streamlit against real servers
+- requirements-phase6.txt, tests/test_phase6_product.py (3 tests, real uvicorn + AppTest),
+  docs/phase6_product.md; two Phase 5 assertions updated from 'resources arrive in Phase 6'
+
+Links not machine-verified (two spot-checked); no browser rendering checked; no auth (Phase 7).
+---
+ .env.example                          |   4 +
+ README.md                             |  11 +-
+ api/__init__.py                       |   0
+ api/main.py                           | 159 +++++++++++++++++
+ app/streamlit_app.py                  | 117 ++++++++++++
+ data/reference/learning_resources.csv |  61 +++++++
+ docs/phase6_product.md                |  48 +++++
+ requirements-phase6.txt               |   6 +
+ scripts/smoke_phase6.sh               |  53 ++++++
+ src/product/client.py                 |  92 ++++++++++
+ src/recommendation/learning.py        | 117 ++++++++++++
+ src/recommendation/recommend.py       |  24 ++-
+ tests/test_phase5_recommendation.py   |   4 +-
+ tests/test_phase6_product.py          | 245 ++++++++++++++++++++++++++
+ 14 files changed, 930 insertions(+), 11 deletions(-)
+ create mode 100644 api/__init__.py
+ create mode 100644 api/main.py
+ create mode 100644 app/streamlit_app.py
+ create mode 100644 data/reference/learning_resources.csv
+ create mode 100644 docs/phase6_product.md
+ create mode 100644 requirements-phase6.txt
+ create mode 100755 scripts/smoke_phase6.sh
+ create mode 100644 src/product/client.py
+ create mode 100644 src/recommendation/learning.py
+ create mode 100644 tests/test_phase6_product.py
+
+diff --git a/.env.example b/.env.example
+index 1fc58ff..2860410 100644
+--- a/.env.example
++++ b/.env.example
+@@ -19,3 +19,7 @@ DATABASE_URL=postgresql://ujuzify:change_me_to_a_strong_password@localhost:5432/
+ # Values come from your API provider. Leave blank to use the offline sample_fixture source.
+ JOB_API_BASE_URL=
+ JOB_API_KEY=
++
++# ---- Phase 6: Streamlit app ----
++# Address of the API the app calls. Not editable from the UI on purpose.
++UJUZIFY_API_URL=http://127.0.0.1:8000
+diff --git a/README.md b/README.md
+index 05d13d0..e8bb851 100644
+--- a/README.md
++++ b/README.md
+@@ -15,11 +15,11 @@ An end-to-end machine learning system that helps Kenyan university/TVET graduate
+ | 3 | ETL (staging, weak career labels, skill demand) and PostgreSQL schema | Done |
+ | 4 | NLP skill extraction (rule extractor, evaluation harness, job_skills) | Done |
+ | 5 | Career recommendation and skill-gap engine | Done |
+-| 6 | Learning resources, FastAPI, Streamlit | Next |
+-| 7 | Docker, CI/CD, monitoring, MLflow | Planned |
++| 6 | Learning resources, FastAPI, Streamlit | Done |
++| 7 | Docker, CI/CD, monitoring, MLflow | Next |
+ | 8-12 | Advanced models, Power BI, AWS | Planned |
+ 
+-Test gates (cumulative passing tests): 10 after Phase 5, 13 after Phase 6, 15 after Phase 7. Phase 0-1 add no pytest tests; Phase 2 adds 5, Phase 3 adds 2, Phase 4 adds 2 and Phase 5 adds 3 (12 so far; the README gate of 10 after Phase 5 is exceeded, so adjust it if you treat gates as exact).
++Test gates (cumulative passing tests): 10 after Phase 5, 13 after Phase 6, 15 after Phase 7. Phase 0-1 add no pytest tests; Phase 2 adds 5, Phase 3 adds 2, Phase 4 adds 2, Phase 5 adds 3 and Phase 6 adds 3 (15 so far; the gates of 10 after Phase 5 and 13 after Phase 6 are exceeded, so adjust them if you treat gates as exact).
+ 
+ ## Quick start
+ Target Python version: **3.13** (matches the Phase 7 Docker image).
+@@ -27,7 +27,7 @@ Target Python version: **3.13** (matches the Phase 7 Docker image).
+ ```bash
+ python -m venv .venv
+ source .venv/bin/activate          # Windows: .venv\Scripts\activate
+-pip install -r requirements.txt
++pip install -r requirements.txt -r requirements-phase6.txt   # phase 6 adds the API and app
+ cp .env.example .env               # then replace placeholder secrets
+ python scripts/validate_taxonomies.py
+ python src/ingestion/job_api.py        # Phase 2: offline sample source
+@@ -40,6 +40,8 @@ python src/evaluation/skill_extraction_eval.py
+ python src/recommendation/build_career_skills.py   # Phase 5
+ python src/recommendation/recommend.py --expect-top CA01
+ python src/evaluation/recommendation_eval.py
++uvicorn api.main:app --port 8000      # Phase 6 API (own terminal)
++streamlit run app/streamlit_app.py    # Phase 6 app (own terminal)
+ pytest
+ ```
+ 
+@@ -71,6 +73,7 @@ graduate-skill-gap-engine/
+ - `docs/phase3_etl.md` — staging, labels, skill demand and the PostgreSQL schema
+ - `docs/phase4_nlp.md` — skill extractor, evaluation results and known failures
+ - `docs/phase5_recommendation.md` — career models, skill-gap analysis, evaluation and its limits
++- `docs/phase6_product.md` — learning resources, API, web app and their limits
+ - `docs/data_model.md` — entities, fields, relationships
+ - `docs/evaluation_strategy.md` — metrics and baselines
+ - `docs/explainability_requirements.md` — explanation and scoring rules
+diff --git a/api/__init__.py b/api/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/api/main.py b/api/main.py
+new file mode 100644
+index 0000000..a6f14a4
+--- /dev/null
++++ b/api/main.py
+@@ -0,0 +1,159 @@
++"""Ujuzify API (Phase 6).
++
++Run from the project root:
++
++    uvicorn api.main:app --host 127.0.0.1 --port 8000
++
++Endpoints
++    GET  /health      readiness, model version and a data notice (503 if data is not built)
++    GET  /skills      the skill taxonomy, for building skill pickers
++    GET  /careers     the careers that have profiles, with sample sizes
++    POST /recommend   career matches + skill gap + learning resources for a skill list
++
++The API is stateless: it stores nothing and does not log skill lists. It has no
++authentication, rate limiting or TLS yet (Phase 7), so keep it on localhost. Every
++recommendation response carries the required disclaimer and data-limits text, and scores
++are compatibility scores, not probabilities of being hired (docs/explainability_requirements.md).
++"""
++from __future__ import annotations
++
++import os
++import sys
++from contextlib import asynccontextmanager
++from pathlib import Path
++
++from fastapi import FastAPI, HTTPException
++from pydantic import BaseModel, ConfigDict, Field, field_validator
++
++ROOT = Path(__file__).resolve().parents[1]
++if str(ROOT) not in sys.path:
++    sys.path.insert(0, str(ROOT))
++
++from src.etl.common import CAREER_SKILL_COLUMNS, CAREER_SKILLS_CSV, EtlError, read_csv  # noqa: E402
++from src.nlp.skill_dictionary import SkillDictionary  # noqa: E402
++from src.recommendation import recommend as rec  # noqa: E402
++from src.recommendation.engine import (  # noqa: E402
++    DATA_LIMITS, DISCLAIMER, MODEL_VERSION, MODELS, PREREQUISITES_CSV, load_prerequisites,
++)
++from src.recommendation.learning import RESOURCES_CSV, ResourceCatalog  # noqa: E402
++
++API_VERSION = "0.6.0"
++
++
++class RecommendRequest(BaseModel):
++    """Input for /recommend. Unknown fields are rejected."""
++    model_config = ConfigDict(extra="forbid")
++
++    profile_id: str = Field("anonymous", min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.:-]+$")
++    skills: list[str] = Field(min_length=1, max_length=50, description="skill names or aliases, e.g. 'MS Excel'")
++    target_career: str | None = Field(None, pattern=r"^CA\d{2}$", description="career_id for the gap analysis")
++    top: int = Field(5, ge=1, le=9)
++    model: str = Field(MODEL_VERSION, max_length=40)
++    free_only: bool = False
++
++    @field_validator("skills")
++    @classmethod
++    def _clean_skills(cls, v: list[str]) -> list[str]:
++        cleaned = [s.strip() for s in v]
++        if any(not s or len(s) > 80 for s in cleaned):
++            raise ValueError("each skill must be 1-80 characters")
++        return cleaned
++
++
++class _State:
++    """Everything loaded at startup. ``error`` is set instead if the data is not built."""
++    dictionary: SkillDictionary
++    rows: list[dict] | None = None
++    catalog: ResourceCatalog | None = None
++    prerequisites: dict | None = None
++    error: str | None = None
++
++
++def _load(state: _State, career_skills: Path, resources: Path, prerequisites: Path) -> None:
++    state.dictionary = SkillDictionary.load()
++    try:
++        state.rows = read_csv(career_skills, CAREER_SKILL_COLUMNS)
++        if not state.rows:
++            raise EtlError("career_skills.csv has no rows")
++        state.catalog = ResourceCatalog.load(resources, state.dictionary)
++        state.prerequisites = load_prerequisites(prerequisites, state.dictionary)
++        state.error = None
++    except (EtlError, ValueError, OSError) as e:
++        state.rows = None
++        state.error = f"{e}"
++
++
++def create_app(career_skills_path: Path | str | None = None, resources_path: Path | str | None = None,
++               prerequisites_path: Path | str | None = None) -> FastAPI:
++    paths = (
++        Path(career_skills_path or os.environ.get("UJUZIFY_CAREER_SKILLS_CSV") or CAREER_SKILLS_CSV),
++        Path(resources_path or RESOURCES_CSV),
++        Path(prerequisites_path or PREREQUISITES_CSV),
++    )
++    state = _State()
++
++    @asynccontextmanager
++    async def lifespan(app: FastAPI):
++        _load(state, *paths)
++        yield
++
++    app = FastAPI(title="Ujuzify API", version=API_VERSION, lifespan=lifespan,
++                  description=DISCLAIMER + " " + DATA_LIMITS)
++
++    def need_data() -> None:
++        if state.error:
++            raise HTTPException(status_code=503, detail=state.error +
++                                " (build it with: python src/recommendation/build_career_skills.py)")
++
++    def corpus_summary() -> dict:
++        careers: dict[str, dict] = {}
++        for r in state.rows or []:
++            careers[r["career_id"]] = {"postings": int(r["postings_in_career"]),
++                                       "synthetic": int(r["synthetic_postings_in_career"]),
++                                       "low_sample": r["low_sample"] == "true", "name": r["career_name"]}
++        return {"careers": careers, "postings": sum(c["postings"] for c in careers.values()),
++                "synthetic": sum(c["synthetic"] for c in careers.values())}
++
++    @app.get("/health")
++    def health() -> dict:
++        need_data()
++        s = corpus_summary()
++        if s["synthetic"]:
++            notice = (f"Demo data: {s['synthetic']} of the {s['postings']} postings behind these career profiles "
++                      "are synthetic test data. Results illustrate how the system works; they say nothing "
++                      "about the Kenyan job market.")
++        else:
++            notice = DATA_LIMITS
++        return {"status": "ok", "api_version": API_VERSION, "model_version": MODEL_VERSION,
++                "models": sorted(MODELS), "careers": len(s["careers"]), "postings": s["postings"],
++                "synthetic_postings": s["synthetic"], "data_notice": notice,
++                "disclaimer": DISCLAIMER, "data_limits": DATA_LIMITS}
++
++    @app.get("/skills")
++    def skills() -> list[dict]:
++        return sorted(({"skill_id": s.skill_id, "canonical_name": s.canonical_name,
++                        "display_name": s.display_name, "category": s.category}
++                       for s in state.dictionary.skills.values()), key=lambda d: d["display_name"].lower())
++
++    @app.get("/careers")
++    def careers() -> list[dict]:
++        need_data()
++        return [{"career_id": cid, "career_name": c["name"], "postings": c["postings"], "low_sample": c["low_sample"]}
++                for cid, c in sorted(corpus_summary()["careers"].items())]
++
++    @app.post("/recommend")
++    def recommend(req: RecommendRequest) -> dict:
++        need_data()
++        if req.model not in MODELS:
++            raise HTTPException(status_code=422, detail=f"unknown model {req.model!r}; choose from {sorted(MODELS)}")
++        try:
++            return rec.run({"profile_id": req.profile_id, "skills": req.skills}, state.rows, model=req.model,
++                           target=req.target_career, top=req.top, dictionary=state.dictionary,
++                           resources=state.catalog, free_only=req.free_only, prerequisites=state.prerequisites)
++        except ValueError as e:      # no recognised skills, or a target career without a profile
++            raise HTTPException(status_code=422, detail=str(e)) from e
++
++    return app
++
++
++app = create_app()
+diff --git a/app/streamlit_app.py b/app/streamlit_app.py
+new file mode 100644
+index 0000000..6af197d
+--- /dev/null
++++ b/app/streamlit_app.py
+@@ -0,0 +1,117 @@
++"""Ujuzify: career matches and skill gaps for graduates (Phase 6 Streamlit app).
++
++Run from the project root, with the API already running:
++
++    uvicorn api.main:app --host 127.0.0.1 --port 8000
++    streamlit run app/streamlit_app.py
++
++The API address comes from the UJUZIFY_API_URL environment variable (default
++http://127.0.0.1:8000). It is deliberately not a field users can edit.
++"""
++import os
++import sys
++from pathlib import Path
++
++import streamlit as st
++
++ROOT = Path(__file__).resolve().parents[1]
++if str(ROOT) not in sys.path:
++    sys.path.insert(0, str(ROOT))
++
++from src.product.client import ApiClient, ApiError, build_payload, md_escape, percent  # noqa: E402
++
++st.set_page_config(page_title="Ujuzify", layout="wide")
++client = ApiClient(os.environ.get("UJUZIFY_API_URL", "http://127.0.0.1:8000"))
++
++st.title("Ujuzify")
++st.caption("Find technology careers that fit your skills, see what to learn next, based on a sample of job postings.")
++
++try:
++    health = client.health()
++    skill_list = client.skills()
++    career_list = client.careers()
++except ApiError as e:
++    st.error(e.message)
++    st.stop()
++
++st.info(health["disclaimer"])
++if health["synthetic_postings"]:
++    st.warning(health["data_notice"])
++
++display_to_name = {s["display_name"]: s["display_name"] for s in skill_list}
++career_by_label = {"Best match (default)": None, **{c["career_name"]: c["career_id"] for c in career_list}}
++
++with st.form("profile"):
++    st.subheader("Your skills")
++    chosen = st.multiselect("Skills you already have", options=list(display_to_name), key="skills_select")
++    extra = st.text_input("Other skills, separated by commas", key="extra_skills",
++                          help="We match common names such as 'MS Excel' or 'Postgres'.")
++    target_label = st.selectbox("Career to plan for (optional)", options=list(career_by_label), key="target_select")
++    free_only = st.checkbox("Free learning resources only", key="free_only")
++    submitted = st.form_submit_button("Get recommendations")
++
++if submitted:
++    try:
++        payload = build_payload(chosen, extra, career_by_label[target_label], free_only)
++        st.session_state["result"] = client.recommend(payload)
++        st.session_state.pop("error", None)
++    except ValueError as e:
++        st.session_state.pop("result", None)
++        st.session_state["error"] = str(e)
++    except ApiError as e:
++        st.session_state.pop("result", None)
++        st.session_state["error"] = e.message
++
++if st.session_state.get("error"):
++    st.warning(st.session_state["error"])
++
++result = st.session_state.get("result")
++if result:
++    if result["unrecognized_skills"]:
++        st.warning("We did not recognise these, so they were left out: "
++                   + ", ".join(md_escape(s) for s in result["unrecognized_skills"]))
++    st.caption("Skills used: " + ", ".join(result["recognized_skills"]))
++
++    st.subheader("Career matches")
++    for m in result["recommendations"][: result["top_n"]]:
++        with st.container(border=True):
++            st.markdown(f"**{m['rank']}. {m['career_name']}** — {percent(m['score'])} compatibility")
++            st.progress(min(max(m["score"], 0.0), 1.0))
++            notes = [f"Based on {m['postings']} sampled postings"]
++            if m["low_sample"]:
++                notes.append("small sample, treat as a rough guide")
++            if m["tied_with"]:
++                notes.append(f"tied with {m['tied_with']} other career(s); their order is arbitrary")
++            st.caption("; ".join(notes))
++            with st.expander("Why this match"):
++                if m["matched"]:
++                    st.markdown("**Skills you have that this career asks for**")
++                    for e in m["matched"][:6]:
++                        st.markdown(f"- {e['display_name']} — in {percent(e['frequency'])} of sampled postings")
++                if m["missing"]:
++                    st.markdown("**Skills it asks for that you could add**")
++                    for e in m["missing"][:6]:
++                        st.markdown(f"- {e['display_name']} — in {percent(e['frequency'])} of sampled postings")
++
++    gap = result["gap"]
++    st.subheader(f"What to learn next for {gap['career_name']}")
++    st.caption("Chosen by you." if result["target_source"] == "requested" else "Your best-matching career.")
++    if not gap["missing"]:
++        st.success("No gaps against this career's sampled requirements.")
++    for g in gap["missing"][:8]:
++        with st.container(border=True):
++            st.markdown(f"**{g['priority']}. {g['display_name']}**")
++            st.caption(g["reason"])
++            res = g["resource"]
++            if res:
++                st.markdown(f"Learn: [{res['title']}]({res['url']}) — {res['provider']} "
++                            f"({res['cost']}, {res['difficulty']})")
++                for alt in g["alternatives"]:
++                    st.markdown(f"Also: [{alt['title']}]({alt['url']}) — {alt['provider']} ({alt['cost']})")
++            else:
++                st.markdown(g["resource_note"])
++
++    st.divider()
++    st.caption(result["disclaimer"])
++    st.caption(result["data_limits"])
++    st.caption(f"Model {result['model_version']}, generated {result['created_at']}.")
+diff --git a/data/reference/learning_resources.csv b/data/reference/learning_resources.csv
+new file mode 100644
+index 0000000..bd64a5e
+--- /dev/null
++++ b/data/reference/learning_resources.csv
+@@ -0,0 +1,61 @@
++resource_id,skill,title,provider,url,difficulty,format,cost,priority
++LR001,python,Python for Everybody,py4e.com (Charles Severance),https://www.py4e.com/,beginner,course,free,1
++LR002,python,The Python Tutorial,Python Software Foundation,https://docs.python.org/3/tutorial/,beginner,documentation,free,2
++LR003,python,Kaggle Learn: Python,Kaggle,https://www.kaggle.com/learn/python,beginner,interactive,free,3
++LR004,sql,SQLBolt,SQLBolt,https://sqlbolt.com/,beginner,interactive,free,1
++LR005,sql,Kaggle Learn: Intro to SQL,Kaggle,https://www.kaggle.com/learn/intro-to-sql,beginner,interactive,free,2
++LR006,r,R for Data Science (2nd edition),"Wickham, Cetinkaya-Rundel, Grolemund",https://r4ds.hadley.nz/,beginner,book,free,1
++LR007,java,Dev.java: Learn,Oracle,https://dev.java/learn/,beginner,tutorial,free,1
++LR008,javascript,JavaScript Guide,MDN Web Docs,https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide,beginner,documentation,free,1
++LR009,typescript,The TypeScript Handbook,Microsoft,https://www.typescriptlang.org/docs/handbook/intro.html,intermediate,documentation,free,1
++LR010,go,A Tour of Go,The Go Project,https://go.dev/tour/,beginner,interactive,free,1
++LR011,bash,Bash Guide for Beginners,The Linux Documentation Project,https://tldp.org/LDP/Bash-Beginners-Guide/html/,beginner,documentation,free,1
++LR012,linux,Linux Journey,Linux Journey,https://linuxjourney.com/,beginner,interactive,free,1
++LR013,excel,Excel help and learning,Microsoft Support,https://support.microsoft.com/en-us/excel,beginner,documentation,free,1
++LR014,power_bi,Power BI documentation,Microsoft Learn,https://learn.microsoft.com/en-us/power-bi/,beginner,documentation,free,1
++LR015,power_query,Power Query documentation,Microsoft Learn,https://learn.microsoft.com/en-us/power-query/,intermediate,documentation,free,1
++LR016,dax,DAX Guide,SQLBI,https://dax.guide/,intermediate,documentation,free,1
++LR017,tableau,Tableau free training videos,Tableau,https://www.tableau.com/learn/training,beginner,video,free,1
++LR018,looker_studio,Looker Studio Help,Google,https://support.google.com/looker-studio,beginner,documentation,free,1
++LR019,statistics,Statistics and probability,Khan Academy,https://www.khanacademy.org/math/statistics-probability,beginner,course,free,1
++LR020,data_visualization,Kaggle Learn: Data Visualization,Kaggle,https://www.kaggle.com/learn/data-visualization,beginner,interactive,free,1
++LR021,data_cleaning,Kaggle Learn: Data Cleaning,Kaggle,https://www.kaggle.com/learn/data-cleaning,beginner,interactive,free,1
++LR022,machine_learning,Kaggle Learn: Intro to Machine Learning,Kaggle,https://www.kaggle.com/learn/intro-to-machine-learning,beginner,interactive,free,1
++LR023,machine_learning,Machine Learning Crash Course,Google,https://developers.google.com/machine-learning/crash-course,beginner,course,free,2
++LR024,deep_learning,Practical Deep Learning for Coders,fast.ai,https://course.fast.ai/,intermediate,course,free,1
++LR025,pandas,Kaggle Learn: Pandas,Kaggle,https://www.kaggle.com/learn/pandas,beginner,interactive,free,1
++LR026,pandas,10 minutes to pandas,pandas,https://pandas.pydata.org/docs/user_guide/10min.html,beginner,documentation,free,2
++LR027,numpy,NumPy: the absolute basics for beginners,NumPy,https://numpy.org/doc/stable/user/absolute_beginners.html,beginner,documentation,free,1
++LR028,scikit_learn,scikit-learn tutorials,scikit-learn,https://scikit-learn.org/stable/tutorial/index.html,intermediate,tutorial,free,1
++LR029,tensorflow,TensorFlow tutorials,TensorFlow,https://www.tensorflow.org/tutorials,intermediate,tutorial,free,1
++LR030,pytorch,PyTorch tutorials,PyTorch,https://pytorch.org/tutorials/,intermediate,tutorial,free,1
++LR031,feature_engineering,Kaggle Learn: Feature Engineering,Kaggle,https://www.kaggle.com/learn/feature-engineering,intermediate,interactive,free,1
++LR032,postgresql,PostgreSQL tutorial,PostgreSQL Global Development Group,https://www.postgresql.org/docs/current/tutorial.html,beginner,documentation,free,1
++LR033,mysql,MySQL tutorial,Oracle,https://dev.mysql.com/doc/refman/8.0/en/tutorial.html,beginner,documentation,free,1
++LR034,mongodb,MongoDB University,MongoDB,https://learn.mongodb.com/,beginner,course,free,1
++LR035,airflow,Airflow tutorial,Apache Airflow,https://airflow.apache.org/docs/apache-airflow/stable/tutorial/index.html,intermediate,tutorial,free,1
++LR036,spark,Spark quick start,Apache Spark,https://spark.apache.org/docs/latest/quick-start.html,intermediate,documentation,free,1
++LR037,kafka,Apache Kafka quickstart,Apache Kafka,https://kafka.apache.org/quickstart,intermediate,tutorial,free,1
++LR038,dbt,dbt Learn,dbt Labs,https://learn.getdbt.com/,intermediate,course,free,1
++LR039,aws,AWS Skill Builder,Amazon Web Services,https://skillbuilder.aws/,beginner,course,freemium,1
++LR040,azure,Azure training,Microsoft Learn,https://learn.microsoft.com/en-us/training/azure/,beginner,course,free,1
++LR041,gcp,Google Cloud Skills Boost,Google Cloud,https://www.cloudskillsboost.google/,beginner,course,freemium,1
++LR042,docker,Docker: Get started,Docker,https://docs.docker.com/get-started/,beginner,tutorial,free,1
++LR043,kubernetes,Learn Kubernetes Basics,Kubernetes,https://kubernetes.io/docs/tutorials/kubernetes-basics/,intermediate,tutorial,free,1
++LR044,terraform,Terraform tutorials,HashiCorp,https://developer.hashicorp.com/terraform/tutorials,intermediate,tutorial,free,1
++LR045,ci_cd,GitHub Actions documentation,GitHub,https://docs.github.com/en/actions,intermediate,documentation,free,1
++LR046,monitoring,Grafana tutorials,Grafana Labs,https://grafana.com/tutorials/,beginner,tutorial,free,1
++LR047,monitoring,Prometheus overview,Prometheus,https://prometheus.io/docs/introduction/overview/,intermediate,documentation,free,2
++LR048,git,Pro Git (2nd edition),Scott Chacon and Ben Straub,https://git-scm.com/book/en/v2,beginner,book,free,1
++LR049,rest_apis,RESTful API tutorial,restfulapi.net,https://restfulapi.net/,beginner,tutorial,free,1
++LR050,fastapi,FastAPI tutorial,FastAPI,https://fastapi.tiangolo.com/tutorial/,beginner,tutorial,free,1
++LR051,django,Django tutorial,Django Software Foundation,https://docs.djangoproject.com/en/stable/intro/tutorial01/,beginner,tutorial,free,1
++LR052,flask,Flask tutorial,Pallets,https://flask.palletsprojects.com/en/stable/tutorial/,beginner,tutorial,free,1
++LR053,react,Learn React,React,https://react.dev/learn,beginner,tutorial,free,1
++LR054,software_testing,pytest: getting started,pytest,https://docs.pytest.org/en/stable/getting-started.html,beginner,documentation,free,1
++LR055,object_oriented_programming,Python tutorial: classes,Python Software Foundation,https://docs.python.org/3/tutorial/classes.html,intermediate,documentation,free,1
++LR056,penetration_testing,Web Security Academy,PortSwigger,https://portswigger.net/web-security,beginner,course,free,1
++LR057,vulnerability_assessment,OWASP Web Security Testing Guide,OWASP,https://owasp.org/www-project-web-security-testing-guide/,intermediate,documentation,free,1
++LR058,identity_access_management,AWS IAM User Guide,Amazon Web Services,https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html,intermediate,documentation,free,1
++LR059,agile,The Scrum Guide,Scrum Guides,https://scrumguides.org/,beginner,documentation,free,1
++LR060,technical_writing,Technical Writing courses,Google,https://developers.google.com/tech-writing,beginner,course,free,1
+diff --git a/docs/phase6_product.md b/docs/phase6_product.md
+new file mode 100644
+index 0000000..eb0d6f7
+--- /dev/null
++++ b/docs/phase6_product.md
+@@ -0,0 +1,48 @@
++# Phase 6 — Learning Resources, API and Web App
++
++Scope: give every skill gap something actionable to do, expose the engine through a small HTTP API, and put a Streamlit front end on it. Authentication, rate limiting, TLS, persistence, feedback capture, Docker and CI are Phase 7.
++
++## Run order (Phase 6 gate)
++```bash
++pip install -r requirements.txt -r requirements-phase6.txt
++python src/recommendation/build_career_skills.py        # Phase 5 output the API reads
++python src/recommendation/recommend.py --expect-top CA01
++uvicorn api.main:app --host 127.0.0.1 --port 8000       # API   (docs at /docs)
++streamlit run app/streamlit_app.py                       # app   (UJUZIFY_API_URL defaults to http://127.0.0.1:8000)
++pytest                                                   # 15 tests (5 + 2 + 2 + 3 + 3)
++bash scripts/smoke_phase6.sh                             # starts both servers, checks them, stops them
++```
++
++## Learning resources (`data/reference/learning_resources.csv`, `src/recommendation/learning.py`)
++60 hand-authored entries covering 54 of the 70 skills (58 free, 2 freemium; 41 beginner, 19 intermediate). Each gap item gets a primary resource and up to two alternatives. Order: authored `priority`, then easier difficulty, then id. `free_only` keeps only resources whose cost is `free`; if none is left the item says so instead of showing a paid one. Where no resource exists the item says "No learning resource is listed for this skill yet."
++
++Share of each career's skill importance that has at least one resource (on the synthetic profiles): Cloud 89%, Data Analyst 86%, Software 86%, DevOps 84%, Data Engineer 82%, Data Scientist 81%, ML Engineer 74%, BI Analyst 56%, Cybersecurity 39%; 76% overall. The uncovered skills are mostly soft skills (problem solving, teamwork, communication) plus ETL, data modeling, data warehousing, SIEM and cybersecurity fundamentals. Closing those gaps is a content task, not a code task.
++
++**Link verification, plainly:** the build sandbox could not reach these sites. I confirmed two entries by web search (dbt Learn, Tableau free training). The rest are official documentation or well-known course roots written from memory and **not machine-checked**; some may have moved. Run a link check and have someone review the list before showing it to users. The loader validates structure only (https URL, known skill, allowed cost/difficulty/format, no duplicates).
++
++## API (`api/main.py`)
++| Endpoint | Purpose |
++|---|---|
++| `GET /health` | readiness, model version, a data notice (says when postings are synthetic); 503 with the fix if `career_skills.csv` is not built |
++| `GET /skills` | the 70-skill taxonomy for pickers |
++| `GET /careers` | careers with posting counts and `low_sample` |
++| `POST /recommend` | `{skills, target_career?, top?, model?, free_only?, profile_id?}` → ranked careers with evidence, the gap list with resources, disclaimer, data limits, `model_version`, `created_at` |
++
++Validation rejects (422) empty or oversized skill lists, skills over 80 characters, unknown fields, bad `top`, malformed career or profile ids, unknown models, unknown target careers, and requests where no skill is recognised. Skills it does not recognise are returned in `unrecognized_skills`, not dropped silently. The API is stateless: nothing is stored or logged about a profile.
++
++## Web app (`app/streamlit_app.py`, `src/product/client.py`)
++A single page: pick skills (or type aliases such as "MS Excel"), optionally choose a target career and free-only resources, press *Get recommendations*. It shows ranked careers with compatibility, sample size and tie/low-sample warnings, an expandable "why" per career, then the prioritised gap list with reasons and learning links, and the disclaimer and data-limits text. A banner states when the data behind the profiles is synthetic. If the API is down it shows how to start it.
++
++Security choices: the API address comes only from the `UJUZIFY_API_URL` environment variable (not a user field); text a user types is escaped before display (tested with a Markdown link); the app stores nothing.
++
++## What the tests cover
++Three new tests (15 in total here). The API and UI tests run against a **real uvicorn server on a local port**, and the UI is driven with Streamlit's `AppTest`, so the app script, its HTTP calls and the API run for real. They cover first load, an empty submit, a full analyst flow with an alias and an unknown skill, target career and free-only, and the API being down. `scripts/smoke_phase6.sh` additionally starts the real `uvicorn` and `streamlit run` processes and checks `/health`, `POST /recommend`, Streamlit's health endpoint and that its page is served.
++
++## Limits and known issues
++- **No browser was used.** `AppTest` runs the page script, but real rendering (layout, widgets in a browser) was not checked. Open the app once by hand before demoing.
++- **Not production-ready:** no authentication, rate limiting or TLS; keep both servers on localhost until Phase 7. Profiles and recommendations are not stored (Phase 7 adds the tables and the API that writes them).
++- The learning list is a starter set (see above); resources have no duration estimates, and proficiency, time and budget beyond free-only are not used.
++- All numbers come from 30 synthetic postings, so every career is `low_sample` and the compatibility percentages are illustrations.
++- Scores are compatibility scores, not probabilities of being hired; the disclaimer and data-limits text appear in every response and on the page.
++- With newer Starlette versions the tests print a deprecation warning about `httpx` in `TestClient`; it is harmless.
++- `scripts/smoke_phase6.sh` needs bash and curl (use WSL or Git Bash on Windows).
+diff --git a/requirements-phase6.txt b/requirements-phase6.txt
+new file mode 100644
+index 0000000..e7221be
+--- /dev/null
++++ b/requirements-phase6.txt
+@@ -0,0 +1,6 @@
++# Phase 6: API and web app. Install with: pip install -r requirements.txt -r requirements-phase6.txt
++fastapi>=0.115
++uvicorn>=0.30
++streamlit>=1.40
++requests>=2.32
++httpx>=0.27        # used by FastAPI's TestClient in the tests
+diff --git a/scripts/smoke_phase6.sh b/scripts/smoke_phase6.sh
+new file mode 100755
+index 0000000..984784f
+--- /dev/null
++++ b/scripts/smoke_phase6.sh
+@@ -0,0 +1,53 @@
++#!/usr/bin/env bash
++# Phase 6 smoke test: recommendation CLI -> API (uvicorn) -> Streamlit server.
++# Run from the project root after the earlier phases have produced data/processed/career_skills.csv:
++#   python src/recommendation/build_career_skills.py && bash scripts/smoke_phase6.sh
++# It starts real servers on localhost, checks them, and always stops them again.
++set -euo pipefail
++
++API_PORT="${API_PORT:-8000}"
++UI_PORT="${UI_PORT:-8501}"
++API_PID=""
++UI_PID=""
++
++cleanup() {
++  [[ -n "$API_PID" ]] && kill "$API_PID" 2>/dev/null || true
++  [[ -n "$UI_PID" ]] && kill "$UI_PID" 2>/dev/null || true
++}
++trap cleanup EXIT
++
++wait_for() {
++  for _ in $(seq 1 80); do
++    curl -fsS "$1" >/dev/null 2>&1 && return 0
++    sleep 0.5
++  done
++  echo "FAILED: timed out waiting for $1" >&2
++  return 1
++}
++
++echo "1/4 recommendation CLI (demo profile must rank Data Analyst, CA01, first)"
++python src/recommendation/recommend.py --expect-top CA01 > /dev/null
++echo "    ok"
++
++echo "2/4 API on 127.0.0.1:${API_PORT}"
++python -m uvicorn api.main:app --host 127.0.0.1 --port "$API_PORT" --log-level warning &
++API_PID=$!
++wait_for "http://127.0.0.1:${API_PORT}/health"
++TOP=$(curl -fsS -X POST "http://127.0.0.1:${API_PORT}/recommend" \
++  -H 'Content-Type: application/json' \
++  -d '{"skills": ["Excel", "SQL", "Statistics", "Data Visualization", "Python", "Communication"]}' |
++  python -c 'import json,sys; r=json.load(sys.stdin); print(r["recommendations"][0]["career_id"], r["model_version"])')
++echo "    POST /recommend -> top career and model: ${TOP}"
++[[ "${TOP%% *}" == "CA01" ]] || { echo "FAILED: expected CA01 first" >&2; exit 1; }
++
++echo "3/4 Streamlit on 127.0.0.1:${UI_PORT}"
++UJUZIFY_API_URL="http://127.0.0.1:${API_PORT}" python -m streamlit run app/streamlit_app.py \
++  --server.headless true --server.address 127.0.0.1 --server.port "$UI_PORT" \
++  --browser.gatherUsageStats false >/dev/null 2>&1 &
++UI_PID=$!
++wait_for "http://127.0.0.1:${UI_PORT}/_stcore/health"
++curl -fsS "http://127.0.0.1:${UI_PORT}/" | grep -qi "<title>" || { echo "FAILED: no page served" >&2; exit 1; }
++echo "    health ok, page served"
++
++echo "4/4 done: servers stopped on exit"
++echo "SMOKE TEST PASSED"
+diff --git a/src/product/client.py b/src/product/client.py
+new file mode 100644
+index 0000000..ad43114
+--- /dev/null
++++ b/src/product/client.py
+@@ -0,0 +1,92 @@
++"""API client and presentation helpers for the Streamlit app (Phase 6).
++
++Kept outside the Streamlit script so the logic can be tested without a browser. Uses
++``requests`` (a Streamlit dependency).
++"""
++from __future__ import annotations
++
++import re
++
++import requests
++
++MAX_SKILLS = 50
++
++
++class ApiError(Exception):
++    """A readable failure from the Ujuzify API, safe to show to a user."""
++
++    def __init__(self, message: str, status: int | None = None):
++        super().__init__(message)
++        self.message, self.status = message, status
++
++
++def _detail(resp: requests.Response) -> str:
++    try:
++        detail = resp.json().get("detail", "")
++    except (ValueError, AttributeError):
++        return f"HTTP {resp.status_code}"
++    if isinstance(detail, list):   # pydantic validation errors
++        return "; ".join(f"{'.'.join(str(p) for p in d.get('loc', [])[1:])}: {d.get('msg', '')}" for d in detail)
++    return str(detail) or f"HTTP {resp.status_code}"
++
++
++class ApiClient:
++    def __init__(self, base_url: str, timeout: float = 10.0, session: requests.Session | None = None):
++        self.base_url = base_url.rstrip("/")
++        self.timeout = timeout
++        self.session = session or requests.Session()
++
++    def _call(self, method: str, path: str, **kw):
++        try:
++            resp = self.session.request(method, self.base_url + path, timeout=self.timeout, **kw)
++        except requests.exceptions.RequestException as e:
++            raise ApiError(f"Cannot reach the Ujuzify API at {self.base_url} ({type(e).__name__}). "
++                           "Start it with: uvicorn api.main:app --host 127.0.0.1 --port 8000") from e
++        if resp.status_code != 200:
++            raise ApiError(_detail(resp), resp.status_code)
++        return resp.json()
++
++    def health(self) -> dict:
++        return self._call("GET", "/health")
++
++    def skills(self) -> list[dict]:
++        return self._call("GET", "/skills")
++
++    def careers(self) -> list[dict]:
++        return self._call("GET", "/careers")
++
++    def recommend(self, payload: dict) -> dict:
++        return self._call("POST", "/recommend", json=payload)
++
++
++def build_payload(selected: list[str], extra_text: str, target_career: str | None,
++                  free_only: bool, top: int = 5, profile_id: str = "web-user") -> dict:
++    """Combine picked skills and free-text extras into an API request; raise ValueError if unusable."""
++    extras = [s.strip() for s in re.split(r"[,;\n]", extra_text or "") if s.strip()]
++    skills, seen = [], set()
++    for s in [*selected, *extras]:
++        if s.lower() not in seen:
++            seen.add(s.lower())
++            skills.append(s)
++    if not skills:
++        raise ValueError("Pick or type at least one skill.")
++    if len(skills) > MAX_SKILLS:
++        raise ValueError(f"Please list at most {MAX_SKILLS} skills.")
++    if any(len(s) > 80 for s in skills):
++        raise ValueError("Each skill name must be 80 characters or fewer.")
++    payload = {"profile_id": profile_id, "skills": skills, "top": top, "free_only": free_only}
++    if target_career:
++        payload["target_career"] = target_career
++    return payload
++
++
++def percent(score: float) -> str:
++    return f"{score:.0%}"
++
++
++_MD_SPECIAL = re.compile(r"([\\`*_{}\[\]()#+\-.!|>~<])")
++
++
++def md_escape(text: str) -> str:
++    """Escape Markdown so user-typed text is shown literally."""
++    return _MD_SPECIAL.sub(r"\\\1", text)
+diff --git a/src/recommendation/learning.py b/src/recommendation/learning.py
+new file mode 100644
+index 0000000..acd52b5
+--- /dev/null
++++ b/src/recommendation/learning.py
+@@ -0,0 +1,117 @@
++"""Learning-resource catalog and gap-to-resource matching (Phase 6).
++
++Resources live in editable reference data (``data/reference/learning_resources.csv``), not in
++code (explainability rule 7). Every skill gap should lead to something actionable (rule 6):
++``attach_resources`` gives each gap item a primary resource and up to two alternatives, or says
++plainly that none is listed.
++
++Selection is deliberately simple and explainable: among resources for the skill that pass the
++cost filter, the authored ``priority`` decides (lower first), then easier difficulty, then id.
++It does not yet use proficiency, time or budget beyond a free-only switch; the catalog is a
++hand-authored starter list.
++
++Standard library only.
++"""
++from __future__ import annotations
++
++import csv
++from dataclasses import dataclass
++from pathlib import Path
++from urllib.parse import urlparse
++
++from src.nlp.skill_dictionary import SkillDictionary
++
++ROOT = Path(__file__).resolve().parents[2]
++RESOURCES_CSV = ROOT / "data" / "reference" / "learning_resources.csv"
++COLUMNS = ["resource_id", "skill", "title", "provider", "url", "difficulty", "format", "cost", "priority"]
++DIFFICULTIES = ("beginner", "intermediate", "advanced")
++FORMATS = ("course", "tutorial", "documentation", "interactive", "video", "book")
++COSTS = ("free", "freemium", "paid")   # 'free' = free to access; 'freemium' = free tier or audit only
++MAX_ALTERNATIVES = 2
++
++
++@dataclass(frozen=True)
++class Resource:
++    resource_id: str
++    skill_id: str
++    canonical_name: str
++    title: str
++    provider: str
++    url: str
++    difficulty: str
++    format: str
++    cost: str
++    priority: int
++
++
++def resource_dict(r: Resource) -> dict:
++    return {"resource_id": r.resource_id, "title": r.title, "provider": r.provider, "url": r.url,
++            "difficulty": r.difficulty, "format": r.format, "cost": r.cost}
++
++
++class ResourceCatalog:
++    def __init__(self, resources: list[Resource]):
++        self.resources = resources
++        self._by_skill: dict[str, list[Resource]] = {}
++        for r in resources:
++            self._by_skill.setdefault(r.skill_id, []).append(r)
++
++    @classmethod
++    def load(cls, path: Path | str | None = None, dictionary: SkillDictionary | None = None) -> "ResourceCatalog":
++        dictionary = dictionary or SkillDictionary.load()
++        p = Path(path) if path else RESOURCES_CSV
++        with p.open(newline="", encoding="utf-8") as fh:
++            reader = csv.DictReader(fh)
++            if reader.fieldnames != COLUMNS:
++                raise ValueError(f"learning resources columns must be {COLUMNS}, found {reader.fieldnames}")
++            rows = list(reader)
++        out, seen_ids, seen_pairs = [], set(), set()
++        for r in rows:
++            rid = r["resource_id"]
++            where = f"resource {rid or '<no id>'}"
++            if not rid or rid in seen_ids:
++                raise ValueError(f"{where}: missing or duplicate resource_id")
++            seen_ids.add(rid)
++            sk = dictionary.by_canonical.get(r["skill"])
++            if sk is None:
++                raise ValueError(f"{where}: unknown skill {r['skill']!r}")
++            url = urlparse(r["url"])
++            if url.scheme != "https" or not url.netloc or " " in r["url"]:
++                raise ValueError(f"{where}: url must be an https URL, got {r['url']!r}")
++            for field, allowed in (("difficulty", DIFFICULTIES), ("format", FORMATS), ("cost", COSTS)):
++                if r[field] not in allowed:
++                    raise ValueError(f"{where}: {field} {r[field]!r} not in {allowed}")
++            if not r["title"].strip() or not r["provider"].strip():
++                raise ValueError(f"{where}: title and provider are required")
++            if not r["priority"].isdigit() or int(r["priority"]) < 1:
++                raise ValueError(f"{where}: priority must be an integer >= 1")
++            if (sk.skill_id, r["url"]) in seen_pairs:
++                raise ValueError(f"{where}: duplicate (skill, url)")
++            seen_pairs.add((sk.skill_id, r["url"]))
++            out.append(Resource(rid, sk.skill_id, sk.canonical_name, r["title"], r["provider"], r["url"],
++                                r["difficulty"], r["format"], r["cost"], int(r["priority"])))
++        return cls(out)
++
++    def options(self, skill_id: str, free_only: bool = False) -> list[Resource]:
++        found = [r for r in self._by_skill.get(skill_id, []) if not free_only or r.cost == "free"]
++        return sorted(found, key=lambda r: (r.priority, DIFFICULTIES.index(r.difficulty), r.resource_id))
++
++    def coverage(self, weights: dict[str, float], free_only: bool = False) -> float:
++        """Share of total weight (e.g. career skill importance) whose skill has >= 1 resource."""
++        total = sum(weights.values())
++        covered = sum(w for s, w in weights.items() if self.options(s, free_only))
++        return covered / total if total else 0.0
++
++
++def attach_resources(gap_items: list[dict], catalog: ResourceCatalog, free_only: bool = False) -> None:
++    """Fill in ``resource``, ``alternatives`` and ``resource_note`` on gap item dicts, in place."""
++    for item in gap_items:
++        opts = catalog.options(item["skill_id"], free_only)
++        item["resource"] = resource_dict(opts[0]) if opts else None
++        item["alternatives"] = [resource_dict(r) for r in opts[1:1 + MAX_ALTERNATIVES]]
++        if opts:
++            item["resource_note"] = None
++        elif free_only and catalog.options(item["skill_id"]):
++            item["resource_note"] = "No free resource is listed for this skill (paid or freemium options exist)."
++        else:
++            item["resource_note"] = "No learning resource is listed for this skill yet."
+diff --git a/src/recommendation/recommend.py b/src/recommendation/recommend.py
+index 68d224c..02a1a2e 100644
+--- a/src/recommendation/recommend.py
++++ b/src/recommendation/recommend.py
+@@ -28,6 +28,7 @@ from src.etl.common import (  # noqa: E402
+     EtlError, read_csv, write_csv,
+ )
+ from src.nlp.skill_dictionary import SkillDictionary  # noqa: E402
++from src.recommendation.learning import RESOURCES_CSV, ResourceCatalog, attach_resources  # noqa: E402
+ from src.recommendation.engine import (  # noqa: E402
+     DATA_LIMITS, DISCLAIMER, MODEL_VERSION, MODELS, PREREQUISITES_CSV, gap_analysis,
+     load_prerequisites, recommend, resolve_skills,
+@@ -50,7 +51,9 @@ def load_profile(path: Path | str) -> dict:
+ 
+ def run(profile: dict, career_skill_rows: list[dict], *, model: str = MODEL_VERSION,
+         target: str | None = None, top: int = 5, prerequisites_path: Path | str | None = None,
+-        now: datetime | None = None, dictionary: SkillDictionary | None = None) -> dict:
++        now: datetime | None = None, dictionary: SkillDictionary | None = None,
++        resources: ResourceCatalog | None = None, free_only: bool = False,
++        prerequisites: dict | None = None) -> dict:
+     """Compute recommendations and the gap report. Returns a JSON-serialisable result dict."""
+     dictionary = dictionary or SkillDictionary.load()
+     profiles = profiles_from_career_skill_rows(career_skill_rows)
+@@ -59,7 +62,8 @@ def run(profile: dict, career_skill_rows: list[dict], *, model: str = MODEL_VERS
+     skills, unknown = resolve_skills(profile["skills"], dictionary)
+     if not skills:
+         raise ValueError("none of the profile's skills are in the skill taxonomy; nothing to match")
+-    prereq = load_prerequisites(prerequisites_path or PREREQUISITES_CSV, dictionary)
++    prereq = prerequisites if prerequisites is not None else load_prerequisites(
++        prerequisites_path or PREREQUISITES_CSV, dictionary)
+     created = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+ 
+     matches = recommend(skills, profiles, dictionary, model)
+@@ -67,6 +71,8 @@ def run(profile: dict, career_skill_rows: list[dict], *, model: str = MODEL_VERS
+     if target_id not in profiles:
+         raise ValueError(f"target career {target_id!r} has no profile (careers with data: {sorted(profiles)})")
+     gap = gap_analysis(skills, profiles[target_id], dictionary, prereq)
++    gap_dict = asdict(gap)
++    attach_resources(gap_dict["missing"], resources or ResourceCatalog.load(dictionary=dictionary), free_only)
+     return {
+         "profile_id": profile["profile_id"],
+         "model_version": model,
+@@ -77,7 +83,8 @@ def run(profile: dict, career_skill_rows: list[dict], *, model: str = MODEL_VERS
+         "target_source": "requested" if (target or profile.get("target_career")) else "top recommendation",
+         "recommendations": [asdict(m) for m in matches],
+         "top_n": top,
+-        "gap": asdict(gap),
++        "gap": gap_dict,
++        "free_only": free_only,
+         "disclaimer": DISCLAIMER,
+         "data_limits": DATA_LIMITS,
+     }
+@@ -118,9 +125,13 @@ def render(result: dict) -> str:
+         out.append("  Priority: " + " -> ".join(g["display_name"] for g in gap["missing"]))
+         for g in gap["missing"][:6]:
+             out.append(f"    {g['priority']}. {g['display_name']}: {g['reason']}")
++            res = g["resource"]
++            if res:
++                out.append(f"       Learn: {res['title']} ({res['provider']}; {res['cost']}, {res['difficulty']}) {res['url']}")
++            else:
++                out.append(f"       {g['resource_note']}")
+     else:
+         out.append("  No gaps against this career's sampled requirements.")
+-    out.append("  (Learning resources for each gap arrive in Phase 6.)")
+     out.append(f"\n{result['disclaimer']}\n{result['data_limits']}")
+     return "\n".join(out)
+ 
+@@ -133,6 +144,8 @@ def main(argv: list[str] | None = None) -> int:
+     ap.add_argument("--target", default=None, help="career_id for the gap analysis (default: top match)")
+     ap.add_argument("--top", type=int, default=5)
+     ap.add_argument("--prerequisites", default=str(PREREQUISITES_CSV))
++    ap.add_argument("--resources", default=str(RESOURCES_CSV))
++    ap.add_argument("--free-only", action="store_true", help="only suggest resources that are free to access")
+     ap.add_argument("--out", default=str(RECOMMENDATIONS_CSV))
+     ap.add_argument("--json", default=str(RECOMMENDATIONS_JSON))
+     ap.add_argument("--expect-top", default=None, help="career_id the top match must be (exit 2 if not)")
+@@ -141,7 +154,8 @@ def main(argv: list[str] | None = None) -> int:
+         profile = load_profile(args.profile)
+         rows = read_csv(Path(args.career_skills), CAREER_SKILL_COLUMNS)
+         result = run(profile, rows, model=args.model, target=args.target, top=args.top,
+-                     prerequisites_path=args.prerequisites)
++                     prerequisites_path=args.prerequisites, free_only=args.free_only,
++                     resources=ResourceCatalog.load(args.resources))
+         write_csv(Path(args.out), RECOMMENDATION_COLUMNS, recommendation_rows(result))
+         Path(args.json).parent.mkdir(parents=True, exist_ok=True)
+         Path(args.json).write_text(json.dumps(result, indent=2), encoding="utf-8")
+diff --git a/tests/test_phase5_recommendation.py b/tests/test_phase5_recommendation.py
+index 5192c6d..52782e6 100644
+--- a/tests/test_phase5_recommendation.py
++++ b/tests/test_phase5_recommendation.py
+@@ -205,12 +205,12 @@ def test_pipeline_cli_demo_gate_and_explainability_rules(tmp_path):
+     assert first["matched"] and first["missing"] and first["low_sample"] is True
+     assert all(e["reason"] and e["postings"] > 0 for e in first["matched"] + first["missing"])
+     assert result["gap"]["career_id"] == "CA01" and result["gap"]["missing"][0]["priority"] == 1
+-    assert all(g["reason"] and g["resource"] is None for g in result["gap"]["missing"])
++    assert all(g["reason"] and (g["resource"] or g["resource_note"]) for g in result["gap"]["missing"])  # rule 6 (Phase 6)
+     profile = rec.load_profile(rec.DEFAULT_PROFILE)
+     text = rec.render(rec.run(profile, rows, now=T0))
+     assert "compatibility" in text and DISCLAIMER in text and DATA_LIMITS in text
+     assert not re.search(r"probab|chance|likelihood|odds", text, re.I)
+-    assert "Learning resources" in text and "[low sample: 4 postings]" in text
++    assert "Learn: " in text and "[low sample: 4 postings]" in text
+ 
+     # Not hard-wired to Data Analyst: a DevOps-style profile and a security profile rank their own careers first.
+     devops = rec.run({"profile_id": "d", "skills": ["Docker", "Kubernetes", "CI/CD", "Linux", "Git", "Terraform"]}, rows)
+diff --git a/tests/test_phase6_product.py b/tests/test_phase6_product.py
+new file mode 100644
+index 0000000..0d7d51a
+--- /dev/null
++++ b/tests/test_phase6_product.py
+@@ -0,0 +1,245 @@
++"""Phase 6 gate tests: learning resources, FastAPI service, Streamlit app end to end.
++
++Three test functions. The API and UI tests run against a real uvicorn server on a local
++port; the UI is driven with Streamlit's AppTest, so requests go through actual HTTP.
++"""
++from __future__ import annotations
++
++import csv
++import json
++import re
++import socket
++import threading
++import time
++from datetime import datetime, timezone
++from pathlib import Path
++
++import pytest
++import uvicorn
++from fastapi.testclient import TestClient
++from streamlit.testing.v1 import AppTest
++
++from api.main import create_app
++from src.etl import build_labels, build_staging
++from src.ingestion import job_api
++from src.nlp import extract_job_skills
++from src.nlp.skill_dictionary import SkillDictionary
++from src.product.client import ApiClient, ApiError, build_payload, md_escape, percent
++from src.recommendation import build_career_skills
++from src.recommendation.engine import DATA_LIMITS, DISCLAIMER, MODEL_VERSION
++from src.recommendation.learning import COLUMNS, ResourceCatalog, attach_resources
++
++ROOT = Path(__file__).resolve().parents[1]
++APP = ROOT / "app" / "streamlit_app.py"
++T0 = datetime(2026, 10, 14, 9, 0, 0, tzinfo=timezone.utc)
++SD = SkillDictionary.load()
++ANALYST = ["Excel", "SQL", "Statistics", "Python", "Data Visualization"]
++FORBIDDEN = re.compile(r"probab|chance|likelihood|odds", re.I)
++
++
++@pytest.fixture(scope="module")
++def career_skills_csv(tmp_path_factory) -> Path:
++    """Run the pipeline on the synthetic fixture into a temp dir; return the career_skills.csv path."""
++    d = tmp_path_factory.mktemp("phase6")
++    job_api.run("sample_fixture", out_dir=d / "raw", now=T0)
++    f = {n: d / f"{n}.csv" for n in ("staging", "labels", "job_skills", "career_skills")}
++    assert build_staging.main(["--raw-dir", str(d / "raw"), "--out", str(f["staging"])]) == 0
++    assert build_labels.main(["--staging", str(f["staging"]), "--out", str(f["labels"])]) == 0
++    assert extract_job_skills.main(["--staging", str(f["staging"]), "--out", str(f["job_skills"])]) == 0
++    assert build_career_skills.main(["--staging", str(f["staging"]), "--labels", str(f["labels"]),
++                                     "--job-skills", str(f["job_skills"]), "--out", str(f["career_skills"])]) == 0
++    return f["career_skills"]
++
++
++@pytest.fixture(scope="module")
++def live_api(career_skills_csv):
++    """A real uvicorn server on a free local port, serving the temp career profiles."""
++    sock = socket.socket()
++    sock.bind(("127.0.0.1", 0))
++    port = sock.getsockname()[1]
++    sock.close()
++    server = uvicorn.Server(uvicorn.Config(create_app(career_skills_path=career_skills_csv), host="127.0.0.1",
++                                           port=port, log_level="warning", access_log=False))
++    thread = threading.Thread(target=server.run, daemon=True)
++    thread.start()
++    for _ in range(100):
++        if server.started:
++            break
++        time.sleep(0.05)
++    assert server.started, "uvicorn did not start"
++    yield f"http://127.0.0.1:{port}"
++    server.should_exit = True
++    thread.join(timeout=5)
++
++
++def test_learning_resources_catalog_and_matching(tmp_path):
++    cat = ResourceCatalog.load()
++    assert len(cat.resources) >= 50 and len({r.resource_id for r in cat.resources}) == len(cat.resources)
++    assert all(r.url.startswith("https://") and r.skill_id in SD.skills for r in cat.resources)
++    for name in ("python", "sql", "excel", "power_bi", "docker", "git"):          # skills the demo careers lean on
++        assert cat.options(SD.by_canonical[name].skill_id), name
++    assert cat.options("SK64") == []                                               # communication: honestly uncovered
++
++    # Validation rejects bad reference data.
++    head = ",".join(COLUMNS)
++    ok = "LR001,python,Python Tutorial,PSF,https://docs.python.org/3/tutorial/,beginner,documentation,free,1"
++    def load(*rows, header=head):
++        p = tmp_path / "res.csv"
++        p.write_text("\n".join([header, *rows]) + "\n")
++        return ResourceCatalog.load(p)
++    assert len(load(ok).resources) == 1
++    for row, msg in [(ok.replace("python,", "not_a_skill,", 1), "unknown skill"),
++                     (ok.replace("https://", "http://"), "https URL"),
++                     (ok.replace(",free,", ",gratis,"), "cost"),
++                     (ok.replace(",beginner,", ",expert,"), "difficulty"),
++                     (ok.replace(",documentation,", ",podcast,"), "format"),
++                     (ok.replace(",free,1", ",free,0"), "priority")]:
++        with pytest.raises(ValueError, match=msg):
++            load(row)
++    with pytest.raises(ValueError, match="duplicate resource_id"):
++        load(ok, ok.replace("https://docs.python.org/3/tutorial/", "https://example.org/x"))
++    with pytest.raises(ValueError, match="duplicate \\(skill, url\\)"):
++        load(ok, ok.replace("LR001", "LR002"))
++    with pytest.raises(ValueError, match="columns"):
++        load(ok, header="resource_id,skill")
++
++    # Selection order: priority, then difficulty, then id. free_only drops freemium/paid.
++    py = SD.by_canonical["python"].skill_id
++    mixed = load(
++        "LR003,python,C,P,https://example.org/c,beginner,course,free,2",
++        "LR001,python,A,P,https://example.org/a,intermediate,course,paid,1",
++        "LR002,python,B,P,https://example.org/b,beginner,course,freemium,2",
++        "LR004,python,D,P,https://example.org/d,intermediate,course,free,2")
++    assert [r.resource_id for r in mixed.options(py)] == ["LR001", "LR002", "LR003", "LR004"]
++    assert [r.resource_id for r in mixed.options(py, free_only=True)] == ["LR003", "LR004"]
++
++    # attach_resources: primary + at most two alternatives; clear notes when nothing fits.
++    items = [{"skill_id": py}, {"skill_id": "SK64"}]
++    attach_resources(items, mixed)
++    assert items[0]["resource"]["resource_id"] == "LR001" and len(items[0]["alternatives"]) == 2
++    assert items[0]["resource_note"] is None and items[1]["resource"] is None and "yet" in items[1]["resource_note"]
++    paid_only = load("LR001,python,A,P,https://example.org/a,beginner,course,paid,1")
++    one = [{"skill_id": py}]
++    attach_resources(one, paid_only, free_only=True)
++    assert one[0]["resource"] is None and "No free resource" in one[0]["resource_note"]
++    assert mixed.coverage({py: 3.0, "SK64": 1.0}) == pytest.approx(0.75) and mixed.coverage({}) == 0.0
++
++
++def test_api_endpoints_validation_and_failure_modes(career_skills_csv, tmp_path):
++    with TestClient(create_app(career_skills_path=career_skills_csv)) as c:
++        h = c.get("/health").json()
++        assert h["status"] == "ok" and h["model_version"] == MODEL_VERSION and h["careers"] == 9
++        assert h["synthetic_postings"] == h["postings"] == 28 and "synthetic test data" in h["data_notice"]
++        assert h["disclaimer"] == DISCLAIMER and h["data_limits"] == DATA_LIMITS
++        skills = c.get("/skills").json()
++        assert len(skills) == 70 and [s["display_name"].lower() for s in skills] == sorted(s["display_name"].lower() for s in skills)
++        careers = c.get("/careers").json()
++        assert [x["career_id"] for x in careers] == [f"CA{i:02d}" for i in range(1, 10)] and all(x["low_sample"] for x in careers)
++
++        # Happy path: ranked, explained, resourced, wording rules.
++        r = c.post("/recommend", json={"skills": ANALYST, "top": 2})
++        body = r.json()
++        assert r.status_code == 200 and body["top_n"] == 2 and len(body["recommendations"]) == 9
++        assert body["recommendations"][0]["career_id"] == "CA01" and body["model_version"] == MODEL_VERSION
++        scores = [m["score"] for m in body["recommendations"]]
++        assert scores == sorted(scores, reverse=True) and all(0 <= s <= 1 for s in scores)
++        assert body["disclaimer"] == DISCLAIMER and body["data_limits"] == DATA_LIMITS
++        assert body["gap"]["missing"] and all(g["resource"] or g["resource_note"] for g in body["gap"]["missing"])
++        assert not FORBIDDEN.search(json.dumps(body))
++        again = c.post("/recommend", json={"skills": ANALYST, "top": 2}).json()
++        assert {**again, "created_at": 0} == {**body, "created_at": 0}                  # deterministic
++
++        # Options: target career, free-only, other model, unrecognised skills echoed back.
++        t = c.post("/recommend", json={"skills": ["SQL"], "target_career": "CA03"}).json()
++        assert t["gap"]["career_id"] == "CA03" and t["target_source"] == "requested"
++        free = c.post("/recommend", json={"skills": ["SQL"], "target_career": "CA07", "free_only": True}).json()
++        assert all(g["resource"] is None or g["resource"]["cost"] == "free" for g in free["gap"]["missing"])
++        assert all(g["resource"] or g["resource_note"] for g in free["gap"]["missing"])   # a reason when nothing is free
++        pop = c.post("/recommend", json={"skills": ["SQL"], "model": "popularity_v0"}).json()
++        assert pop["model_version"] == "popularity_v0"
++        part = c.post("/recommend", json={"skills": ["SQL", "Underwater Basket Weaving"]}).json()
++        assert part["unrecognized_skills"] == ["Underwater Basket Weaving"] and part["recognized_skills"] == ["SQL"]
++
++        # Validation: every one of these must be a clean 422, never a 500.
++        bad = [{"skills": []}, {"skills": ["SQL"] * 51}, {"skills": ["x" * 81]}, {"skills": ["  "]},
++               {"skills": "SQL"}, {"skills": ["SQL"], "bogus": 1}, {"skills": ["SQL"], "top": 0},
++               {"skills": ["SQL"], "top": 10}, {"skills": ["SQL"], "target_career": "data analyst"},
++               {"skills": ["SQL"], "profile_id": "a b/c"}, {"skills": ["SQL"], "model": "magic_v9"},
++               {"skills": ["SQL"], "target_career": "CA42"}, {"skills": ["Underwater Basket Weaving"]}, {}]
++        for payload in bad:
++            resp = c.post("/recommend", json=payload)
++            assert resp.status_code == 422, payload
++        assert c.get("/recommend").status_code == 405
++        assert c.post("/recommend", content="not json", headers={"content-type": "application/json"}).status_code == 422
++
++    # Data not built: clear 503 with the fix, but the taxonomy endpoint still works.
++    with TestClient(create_app(career_skills_path=tmp_path / "missing.csv")) as c:
++        for path in ("/health", "/careers"):
++            resp = c.get(path)
++            assert resp.status_code == 503 and "build_career_skills.py" in resp.json()["detail"]
++        assert c.post("/recommend", json={"skills": ["SQL"]}).status_code == 503
++        assert c.get("/skills").status_code == 200
++
++
++def test_streamlit_app_end_to_end(live_api, monkeypatch):
++    monkeypatch.setenv("UJUZIFY_API_URL", live_api)
++    texts = lambda at, kind: [e.value for e in getattr(at, kind)]  # noqa: E731
++
++    # 1. First load: disclaimer and synthetic-data warning shown, no results, no crash.
++    at = AppTest.from_file(str(APP), default_timeout=30).run()
++    assert not at.exception
++    assert DISCLAIMER in texts(at, "info") and any("synthetic test data" in w for w in texts(at, "warning"))
++    assert not at.subheader or "Career matches" not in texts(at, "subheader")
++    assert at.multiselect(key="skills_select").options and len(at.multiselect(key="skills_select").options) == 70
++
++    # 2. Submitting nothing gives a message, not results or a crash.
++    at.button[0].click().run()
++    assert not at.exception and any("at least one skill" in w for w in texts(at, "warning"))
++    assert "Career matches" not in texts(at, "subheader")
++
++    # 3. Analyst-style skills plus a typed alias and an unknown skill.
++    at.multiselect(key="skills_select").set_value(["Excel", "SQL", "Statistics", "Python", "Data Visualization"])
++    at.text_input(key="extra_skills").set_value("MS Excel, Underwater Basket Weaving, [click](http://x.example)")
++    at.button[0].click().run()
++    assert not at.exception
++    md = texts(at, "markdown")
++    assert md[0].startswith("**1. Data Analyst**") and "compatibility" in md[0]
++    assert "What to learn next for Data Analyst" in texts(at, "subheader")
++    assert any(m.startswith("Learn: [") for m in md)                      # a resource link is shown
++    unknown_warning = next(w for w in texts(at, "warning") if "did not recognise" in w)
++    assert "Underwater Basket Weaving" in unknown_warning
++    assert "[click](http" not in unknown_warning and "\\[click\\]\\(http" in unknown_warning   # typed text is escaped, not a live link
++    captions = texts(at, "caption")
++    assert DISCLAIMER in captions and DATA_LIMITS in captions and not FORBIDDEN.search(" ".join(md + captions))
++    assert len(at.get("progress")) >= 1
++
++    # 4. Pick a target career and free-only: the gap section follows the choice.
++    at.selectbox(key="target_select").select("Data Engineer")
++    at.checkbox(key="free_only").check()
++    at.button[0].click().run()
++    assert not at.exception
++    assert "What to learn next for Data Engineer" in texts(at, "subheader") and "Chosen by you." in texts(at, "caption")
++    assert not any("freemium" in m or "paid" in m for m in texts(at, "markdown") if m.startswith(("Learn:", "Also:")))
++
++    # 5. API unreachable: a readable error and no results, not a stack trace.
++    monkeypatch.setenv("UJUZIFY_API_URL", "http://127.0.0.1:9")
++    down = AppTest.from_file(str(APP), default_timeout=30).run()
++    assert not down.exception and any("Cannot reach the Ujuzify API" in e for e in texts(down, "error"))
++    assert not down.get("form")
++
++    # Client and helper behaviour, against the same live server.
++    client = ApiClient(live_api)
++    assert client.health()["status"] == "ok" and len(client.skills()) == 70 and len(client.careers()) == 9
++    with pytest.raises(ApiError) as exc:
++        client.recommend({"skills": [], "top": 5})
++    assert exc.value.status == 422 and "skills" in exc.value.message
++    with pytest.raises(ApiError, match="Cannot reach"):
++        ApiClient("http://127.0.0.1:9", timeout=1).health()
++    p = build_payload(["Excel", "SQL"], "excel, Python; python\nGit", "CA01", True)
++    assert p["skills"] == ["Excel", "SQL", "Python", "Git"] and p["target_career"] == "CA01" and p["free_only"] is True
++    assert "target_career" not in build_payload(["SQL"], "", None, False)
++    for args in ((["SQL"] * 0, "", None, False), ([], " , ; ", None, False), ([f"s{i}" for i in range(51)], "", None, False),
++                 (["x" * 81], "", None, False)):
++        with pytest.raises(ValueError):
++            build_payload(*args)
++    assert percent(0.5612) == "56%" and md_escape("a_b*c[d](e)") == "a\\_b\\*c\\[d\\]\\(e\\)"
+-- 
+2.43.0
+

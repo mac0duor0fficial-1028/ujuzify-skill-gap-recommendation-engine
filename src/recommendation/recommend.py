@@ -28,6 +28,7 @@ from src.etl.common import (  # noqa: E402
     EtlError, read_csv, write_csv,
 )
 from src.nlp.skill_dictionary import SkillDictionary  # noqa: E402
+from src.recommendation.learning import RESOURCES_CSV, ResourceCatalog, attach_resources  # noqa: E402
 from src.recommendation.engine import (  # noqa: E402
     DATA_LIMITS, DISCLAIMER, MODEL_VERSION, MODELS, PREREQUISITES_CSV, gap_analysis,
     load_prerequisites, recommend, resolve_skills,
@@ -50,7 +51,9 @@ def load_profile(path: Path | str) -> dict:
 
 def run(profile: dict, career_skill_rows: list[dict], *, model: str = MODEL_VERSION,
         target: str | None = None, top: int = 5, prerequisites_path: Path | str | None = None,
-        now: datetime | None = None, dictionary: SkillDictionary | None = None) -> dict:
+        now: datetime | None = None, dictionary: SkillDictionary | None = None,
+        resources: ResourceCatalog | None = None, free_only: bool = False,
+        prerequisites: dict | None = None) -> dict:
     """Compute recommendations and the gap report. Returns a JSON-serialisable result dict."""
     dictionary = dictionary or SkillDictionary.load()
     profiles = profiles_from_career_skill_rows(career_skill_rows)
@@ -59,7 +62,8 @@ def run(profile: dict, career_skill_rows: list[dict], *, model: str = MODEL_VERS
     skills, unknown = resolve_skills(profile["skills"], dictionary)
     if not skills:
         raise ValueError("none of the profile's skills are in the skill taxonomy; nothing to match")
-    prereq = load_prerequisites(prerequisites_path or PREREQUISITES_CSV, dictionary)
+    prereq = prerequisites if prerequisites is not None else load_prerequisites(
+        prerequisites_path or PREREQUISITES_CSV, dictionary)
     created = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     matches = recommend(skills, profiles, dictionary, model)
@@ -67,6 +71,8 @@ def run(profile: dict, career_skill_rows: list[dict], *, model: str = MODEL_VERS
     if target_id not in profiles:
         raise ValueError(f"target career {target_id!r} has no profile (careers with data: {sorted(profiles)})")
     gap = gap_analysis(skills, profiles[target_id], dictionary, prereq)
+    gap_dict = asdict(gap)
+    attach_resources(gap_dict["missing"], resources or ResourceCatalog.load(dictionary=dictionary), free_only)
     return {
         "profile_id": profile["profile_id"],
         "model_version": model,
@@ -77,7 +83,8 @@ def run(profile: dict, career_skill_rows: list[dict], *, model: str = MODEL_VERS
         "target_source": "requested" if (target or profile.get("target_career")) else "top recommendation",
         "recommendations": [asdict(m) for m in matches],
         "top_n": top,
-        "gap": asdict(gap),
+        "gap": gap_dict,
+        "free_only": free_only,
         "disclaimer": DISCLAIMER,
         "data_limits": DATA_LIMITS,
     }
@@ -118,9 +125,13 @@ def render(result: dict) -> str:
         out.append("  Priority: " + " -> ".join(g["display_name"] for g in gap["missing"]))
         for g in gap["missing"][:6]:
             out.append(f"    {g['priority']}. {g['display_name']}: {g['reason']}")
+            res = g["resource"]
+            if res:
+                out.append(f"       Learn: {res['title']} ({res['provider']}; {res['cost']}, {res['difficulty']}) {res['url']}")
+            else:
+                out.append(f"       {g['resource_note']}")
     else:
         out.append("  No gaps against this career's sampled requirements.")
-    out.append("  (Learning resources for each gap arrive in Phase 6.)")
     out.append(f"\n{result['disclaimer']}\n{result['data_limits']}")
     return "\n".join(out)
 
@@ -133,6 +144,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--target", default=None, help="career_id for the gap analysis (default: top match)")
     ap.add_argument("--top", type=int, default=5)
     ap.add_argument("--prerequisites", default=str(PREREQUISITES_CSV))
+    ap.add_argument("--resources", default=str(RESOURCES_CSV))
+    ap.add_argument("--free-only", action="store_true", help="only suggest resources that are free to access")
     ap.add_argument("--out", default=str(RECOMMENDATIONS_CSV))
     ap.add_argument("--json", default=str(RECOMMENDATIONS_JSON))
     ap.add_argument("--expect-top", default=None, help="career_id the top match must be (exit 2 if not)")
@@ -141,7 +154,8 @@ def main(argv: list[str] | None = None) -> int:
         profile = load_profile(args.profile)
         rows = read_csv(Path(args.career_skills), CAREER_SKILL_COLUMNS)
         result = run(profile, rows, model=args.model, target=args.target, top=args.top,
-                     prerequisites_path=args.prerequisites)
+                     prerequisites_path=args.prerequisites, free_only=args.free_only,
+                     resources=ResourceCatalog.load(args.resources))
         write_csv(Path(args.out), RECOMMENDATION_COLUMNS, recommendation_rows(result))
         Path(args.json).parent.mkdir(parents=True, exist_ok=True)
         Path(args.json).write_text(json.dumps(result, indent=2), encoding="utf-8")
