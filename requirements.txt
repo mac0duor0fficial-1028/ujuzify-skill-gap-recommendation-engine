@@ -1,4 +1,0 @@
-# Phase 0-1 baseline. Phase-specific dependencies are added in later phases
-# (requirements-phase4.txt, requirements-phase6.txt, requirements-phase7.txt).
-pandas>=2.2
-pytest>=8.0
