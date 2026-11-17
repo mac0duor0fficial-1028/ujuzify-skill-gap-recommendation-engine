@@ -1,0 +1,76 @@
+resource_id,skill_id,title,provider,url,cost_tier,level,estimated_hours,resource_type,description
+LR001,python,The Python Tutorial,Python Software Foundation,https://docs.python.org/3/tutorial/,free,beginner,20,documentation,Official guided tour of the language.
+LR002,python,Kaggle Learn: Python,Kaggle,https://www.kaggle.com/learn/python,free,beginner,5,course,Short hands-on lessons with exercises.
+LR003,java,Dev.java Learn,Oracle,https://dev.java/learn/,free,beginner,30,documentation,Official Java learning paths.
+LR004,javascript,The Modern JavaScript Tutorial,javascript.info,https://javascript.info/,free,beginner,30,tutorial,Comprehensive language tutorial.
+LR005,typescript,TypeScript Handbook,Microsoft,https://www.typescriptlang.org/docs/handbook/intro.html,free,intermediate,10,documentation,Official handbook.
+LR006,csharp,A tour of C#,Microsoft Learn,https://learn.microsoft.com/en-us/dotnet/csharp/tour-of-csharp/,free,beginner,15,documentation,Introductory language tour.
+LR007,golang,A Tour of Go,Go team,https://go.dev/tour/,free,beginner,8,tutorial,Interactive introduction to Go.
+LR008,r_language,R for Data Science,Hadley Wickham,https://r4ds.hadley.nz/,free,beginner,30,book,Free online book covering the tidyverse workflow.
+LR009,bash_scripting,Bash Guide,Greg's Wiki,https://mywiki.wooledge.org/BashGuide,free,beginner,10,tutorial,"Practical, correct Bash scripting."
+LR010,sql,SQLBolt,SQLBolt,https://sqlbolt.com/,free,beginner,6,interactive,Interactive SQL lessons.
+LR011,sql,Kaggle Learn: Intro to SQL,Kaggle,https://www.kaggle.com/learn/intro-to-sql,free,beginner,4,course,Query real datasets with BigQuery.
+LR012,postgresql,PostgreSQL Tutorial,PostgreSQL Global Development Group,https://www.postgresql.org/docs/current/tutorial.html,free,beginner,8,documentation,Official tutorial.
+LR013,mysql,MySQL Tutorial,Oracle,https://dev.mysql.com/doc/refman/8.0/en/tutorial.html,free,beginner,8,documentation,Official reference tutorial.
+LR014,mongodb,MongoDB University,MongoDB,https://learn.mongodb.com/,free,beginner,10,course,Free self-paced courses.
+LR015,data_modeling,Database Design Course,freeCodeCamp,https://www.freecodecamp.org/news/database-design-course/,free,beginner,8,course,Relational design and normalisation.
+LR016,excel,Excel video training,Microsoft Support,https://support.microsoft.com/en-us/excel,free,beginner,10,documentation,Official Excel training and guides.
+LR017,power_bi,Microsoft Power BI learning path,Microsoft Learn,https://learn.microsoft.com/en-us/training/powerplatform/power-bi,free,beginner,20,course,Official Power BI training.
+LR018,tableau,Tableau free training videos,Tableau,https://www.tableau.com/learn/training,free,beginner,10,course,Official getting-started videos.
+LR019,statistics,Statistics and probability,Khan Academy,https://www.khanacademy.org/math/statistics-probability,free,beginner,30,course,Foundations of descriptive and inferential statistics.
+LR020,data_visualization,Kaggle Learn: Data Visualization,Kaggle,https://www.kaggle.com/learn/data-visualization,free,beginner,4,course,Charts with seaborn.
+LR021,data_cleaning,Kaggle Learn: Data Cleaning,Kaggle,https://www.kaggle.com/learn/data-cleaning,free,beginner,4,course,"Handle missing values, encodings and inconsistencies."
+LR022,pandas,Kaggle Learn: Pandas,Kaggle,https://www.kaggle.com/learn/pandas,free,beginner,4,course,DataFrame manipulation.
+LR023,numpy,NumPy: Learn,NumPy,https://numpy.org/learn/,free,beginner,8,documentation,Official tutorials.
+LR024,business_intelligence,Power BI learning path,Microsoft Learn,https://learn.microsoft.com/en-us/training/powerplatform/power-bi,free,intermediate,20,course,BI reporting with Power BI.
+LR025,machine_learning,Kaggle Learn: Intro to Machine Learning,Kaggle,https://www.kaggle.com/learn/intro-to-machine-learning,free,beginner,4,course,First models with scikit-learn.
+LR026,machine_learning,Machine Learning Crash Course,Google,https://developers.google.com/machine-learning/crash-course,free,beginner,15,course,Concepts and TensorFlow exercises.
+LR027,deep_learning,Kaggle Learn: Intro to Deep Learning,Kaggle,https://www.kaggle.com/learn/intro-to-deep-learning,free,intermediate,4,course,Neural networks with Keras.
+LR028,scikit_learn,scikit-learn User Guide,scikit-learn,https://scikit-learn.org/stable/user_guide.html,free,intermediate,15,documentation,Official user guide.
+LR029,tensorflow,TensorFlow tutorials,TensorFlow,https://www.tensorflow.org/tutorials,free,intermediate,15,tutorial,Official tutorials.
+LR030,pytorch,PyTorch tutorials,PyTorch,https://pytorch.org/tutorials/,free,intermediate,15,tutorial,Official tutorials.
+LR031,nlp,Kaggle Learn: Natural Language Processing,Kaggle,https://www.kaggle.com/learn/natural-language-processing,free,intermediate,4,course,Text classification and embeddings.
+LR032,nlp,spaCy 101,Explosion,https://spacy.io/usage/spacy-101,free,beginner,3,documentation,Core spaCy concepts.
+LR033,mlops,MLOps principles,ml-ops.org,https://ml-ops.org/,free,intermediate,10,documentation,"Concepts, workflows and tooling."
+LR034,feature_engineering,Kaggle Learn: Feature Engineering,Kaggle,https://www.kaggle.com/learn/feature-engineering,free,intermediate,5,course,Create informative model inputs.
+LR035,etl,Data Engineering Zoomcamp,DataTalks.Club,https://github.com/DataTalksClub/data-engineering-zoomcamp,free,intermediate,60,course,Free end-to-end data engineering course.
+LR036,airflow,Apache Airflow tutorial,Apache Airflow,https://airflow.apache.org/docs/apache-airflow/stable/tutorial/,free,intermediate,8,documentation,Build your first DAG.
+LR037,spark,Spark quick start,Apache Spark,https://spark.apache.org/docs/latest/quick-start.html,free,intermediate,10,documentation,Official quick start.
+LR038,kafka,Apache Kafka quickstart,Apache Kafka,https://kafka.apache.org/quickstart,free,intermediate,6,documentation,Run Kafka and produce your first events.
+LR039,dbt,dbt introduction,dbt Labs,https://docs.getdbt.com/docs/introduction,free,intermediate,10,documentation,Transformations as code.
+LR040,data_warehousing,Dimensional modeling techniques,Kimball Group,https://www.kimballgroup.com/data-warehouse-business-intelligence-resources/kimball-techniques/,free,intermediate,10,documentation,Classic warehouse design techniques.
+LR041,aws,AWS Skill Builder digital training,Amazon Web Services,https://aws.amazon.com/training/digital/,free,beginner,20,course,Free digital training catalogue.
+LR042,azure,Microsoft Azure training,Microsoft Learn,https://learn.microsoft.com/en-us/training/azure/,free,beginner,20,course,Official Azure learning paths.
+LR043,gcp,Google Cloud Skills Boost,Google Cloud,https://www.cloudskillsboost.google/,paid,beginner,20,course,Hands-on labs; some free credits available.
+LR044,cloud_computing,AWS Cloud Practitioner Essentials,Amazon Web Services,https://aws.amazon.com/training/learn-about/cloud-practitioner/,free,beginner,8,course,Core cloud concepts.
+LR045,linux,Linux Journey,Linux Journey,https://linuxjourney.com/,free,beginner,15,tutorial,Gentle introduction to Linux.
+LR046,networking,Networking Academy,Cisco,https://www.netacad.com/,free,beginner,30,course,Introductory networking courses.
+LR047,terraform,Terraform tutorials,HashiCorp,https://developer.hashicorp.com/terraform/tutorials,free,intermediate,12,tutorial,Official step-by-step tutorials.
+LR048,docker,Docker get started,Docker,https://docs.docker.com/get-started/,free,beginner,6,documentation,Containers from first principles.
+LR049,kubernetes,Kubernetes tutorials,Kubernetes,https://kubernetes.io/docs/tutorials/,free,intermediate,15,tutorial,Official tutorials.
+LR050,ci_cd,GitHub Actions quickstart,GitHub,https://docs.github.com/en/actions/quickstart,free,beginner,4,documentation,Automate tests and builds.
+LR051,git,Pro Git,Scott Chacon and Ben Straub,https://git-scm.com/book/en/v2,free,beginner,10,book,Free official Git book.
+LR052,monitoring,Prometheus overview,Prometheus,https://prometheus.io/docs/introduction/overview/,free,intermediate,6,documentation,Metrics and alerting fundamentals.
+LR053,rest_apis,RESTful API tutorial,restfulapi.net,https://restfulapi.net/,free,beginner,6,tutorial,REST design principles.
+LR054,fastapi,FastAPI tutorial,FastAPI,https://fastapi.tiangolo.com/tutorial/,free,beginner,8,documentation,Official step-by-step tutorial.
+LR055,django,Django tutorial,Django Software Foundation,https://docs.djangoproject.com/en/stable/intro/tutorial01/,free,beginner,12,documentation,Build a polls app.
+LR056,flask,Flask tutorial,Pallets,https://flask.palletsprojects.com/en/stable/tutorial/,free,beginner,8,documentation,Build a small blog app.
+LR057,react,Learn React,Meta,https://react.dev/learn,free,beginner,15,documentation,Official interactive tutorial.
+LR058,html_css,Learn web development,MDN,https://developer.mozilla.org/en-US/docs/Learn_web_development,free,beginner,30,documentation,Structured web fundamentals.
+LR059,node_js,Learn Node.js,OpenJS Foundation,https://nodejs.org/en/learn,free,beginner,10,documentation,Official Node.js learning path.
+LR060,testing,pytest getting started,pytest,https://docs.pytest.org/en/stable/getting-started.html,free,beginner,4,documentation,Write and run tests.
+LR061,system_design,System Design Primer,Donne Martin,https://github.com/donnemartin/system-design-primer,free,intermediate,30,guide,Scalable system design reference.
+LR062,oop,Python classes,Python Software Foundation,https://docs.python.org/3/tutorial/classes.html,free,beginner,5,documentation,Object-oriented basics.
+LR063,algorithms,"Algorithms, Part I",Princeton University,https://www.coursera.org/learn/algorithms-part1,paid,intermediate,40,course,Core data structures and algorithms; audit option available.
+LR064,agile,The Scrum Guide,Scrum.org,https://scrumguides.org/,free,beginner,2,guide,Official definition of Scrum.
+LR065,cybersecurity,OWASP Top Ten,OWASP,https://owasp.org/www-project-top-ten/,free,beginner,5,guide,Most critical web security risks.
+LR066,cybersecurity,TryHackMe learning paths,TryHackMe,https://tryhackme.com/,paid,beginner,30,interactive,Hands-on security labs; free tier available.
+LR067,network_security,Networking Academy,Cisco,https://www.netacad.com/,free,intermediate,30,course,Network security courses.
+LR068,siem,Splunk training,Splunk,https://www.splunk.com/en_us/training.html,free,intermediate,15,course,Free fundamentals courses.
+LR069,incident_response,Computer Security Incident Handling Guide,NIST,https://csrc.nist.gov/pubs/sp/800/61/r2/final,free,intermediate,6,guide,NIST SP 800-61 Rev. 2.
+LR070,vulnerability_assessment,OWASP Web Security Testing Guide,OWASP,https://owasp.org/www-project-web-security-testing-guide/,free,intermediate,15,guide,Structured security testing methodology.
+LR071,cryptography,Cryptography I,Stanford University,https://www.coursera.org/learn/crypto,paid,intermediate,25,course,Foundations of modern cryptography; audit option available.
+LR072,penetration_testing,Web Security Academy,PortSwigger,https://portswigger.net/web-security,free,intermediate,30,interactive,Free labs for web application attacks and defences.
+LR073,communication,Communication skills learning,edX,https://www.edx.org/learn/communication,paid,beginner,10,course,Free audit tracks available.
+LR074,problem_solving,Computational thinking,Google for Education,https://edu.google.com/resources/programs/exploring-computational-thinking/,free,beginner,5,guide,Structured problem decomposition.
+LR075,project_management,Project Management Foundations,Coursera,https://www.coursera.org/professional-certificates/google-project-management,paid,beginner,40,course,Audit option available.

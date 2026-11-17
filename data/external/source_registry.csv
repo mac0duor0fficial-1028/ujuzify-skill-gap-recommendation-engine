@@ -1,0 +1,3 @@
+source_id,name,method,access,status,governance_notes
+joa,Job Opportunities API,REST/JSON,public jobs endpoint; country filter KE,enabled,Check current terms before redistributing raw descriptions
+adzuna,Adzuna API,REST/JSON,requires application id and key,disabled,Terms allow personal research; confirm intended use before enabling

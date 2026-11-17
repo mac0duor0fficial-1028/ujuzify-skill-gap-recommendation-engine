@@ -1,0 +1,71 @@
+skill_id,canonical_name,display_name,category,aliases,related_skills
+SK001,python,Python,programming,python programming|python3|python 3,r_language|pandas
+SK002,java,Java,programming,java programming|core java|java se|jdk,csharp|oop
+SK003,javascript,JavaScript,programming,js|ecmascript|es6|vanilla javascript,typescript|node_js
+SK004,typescript,TypeScript,programming,,javascript
+SK005,csharp,C#,programming,c sharp|csharp|.net|dotnet|asp.net,java
+SK006,golang,Go,programming,golang|go programming|go lang,python
+SK007,r_language,R,programming,r programming|r language|rstudio|r studio,python|statistics
+SK008,bash_scripting,Bash scripting,programming,bash|shell scripting|shell script|shell scripts,linux
+SK009,sql,SQL,databases,structured query language|t-sql|tsql|pl/sql|plsql|sql queries,postgresql|mysql
+SK010,postgresql,PostgreSQL,databases,postgres|psql,sql|mysql
+SK011,mysql,MySQL,databases,mariadb|my sql,sql|postgresql
+SK012,mongodb,MongoDB,databases,mongo|mongo db|nosql databases|nosql,sql
+SK013,data_modeling,Data modeling,databases,data modelling|database design|schema design|dimensional modeling|er diagrams|erd,sql|data_warehousing
+SK014,excel,Excel,analytics,ms excel|microsoft excel|spreadsheets|spreadsheet|pivot tables|vlookup|xlsx,power_bi
+SK015,power_bi,Power BI,analytics,powerbi|microsoft power bi|power bi desktop|dax,tableau|excel|business_intelligence
+SK016,tableau,Tableau,analytics,tableau desktop|tableau public,power_bi|data_visualization
+SK017,statistics,Statistics,analytics,statistical analysis|statistical methods|hypothesis testing|probability and statistics|inferential statistics|descriptive statistics|regression analysis,machine_learning|r_language
+SK018,data_visualization,Data visualization,analytics,data visualisation|data viz|dashboards|dashboarding|charts and graphs|matplotlib|seaborn|plotly,tableau|power_bi
+SK019,data_cleaning,Data cleaning,analytics,data cleansing|data wrangling|data preparation|data preprocessing|data munging,pandas|sql
+SK020,pandas,Pandas,analytics,pandas library|dataframes,numpy|python
+SK021,numpy,NumPy,analytics,numpy library|numerical python,pandas|python
+SK022,business_intelligence,Business intelligence,analytics,bi reporting|bi tools|business intelligence reporting|kpi reporting|kpi tracking,power_bi|tableau
+SK023,machine_learning,Machine learning,ai_ml,ml|machine-learning|predictive modeling|predictive modelling|supervised learning|unsupervised learning|ml models,statistics|deep_learning|scikit_learn
+SK024,deep_learning,Deep learning,ai_ml,neural networks|neural network|cnn|rnn,machine_learning|pytorch|tensorflow
+SK025,scikit_learn,Scikit-learn,ai_ml,sklearn|scikit learn|scikitlearn,machine_learning
+SK026,tensorflow,TensorFlow,ai_ml,tensor flow|keras,pytorch|deep_learning
+SK027,pytorch,PyTorch,ai_ml,torch|py torch,tensorflow|deep_learning
+SK028,nlp,Natural language processing,ai_ml,nlp|text mining|text analytics|spacy|language models|large language models|llm|llms,machine_learning
+SK029,mlops,MLOps,ai_ml,ml ops|machine learning operations|model deployment|model serving|mlflow|model monitoring,docker|ci_cd|machine_learning
+SK030,feature_engineering,Feature engineering,ai_ml,feature selection|feature extraction,machine_learning|data_cleaning
+SK031,etl,ETL,data_engineering,extract transform load|elt|data pipelines|data pipeline|etl pipelines|data ingestion,airflow|data_warehousing
+SK032,airflow,Apache Airflow,data_engineering,airflow|apache airflow|workflow orchestration|dags,etl
+SK033,spark,Apache Spark,data_engineering,spark|pyspark|apache spark|databricks,etl|python
+SK034,kafka,Apache Kafka,data_engineering,kafka|apache kafka|event streaming|stream processing|data streaming,spark
+SK035,dbt,dbt,data_engineering,data build tool|dbt core|dbt cloud,sql|etl
+SK036,data_warehousing,Data warehousing,data_engineering,data warehouse|data warehouses|snowflake|bigquery|redshift|olap,sql|data_modeling|etl
+SK037,aws,AWS,cloud,amazon web services|amazon aws|aws cloud|ec2|s3|aws lambda,azure|gcp|cloud_computing
+SK038,azure,Microsoft Azure,cloud,azure|azure cloud|microsoft azure cloud,aws|gcp|cloud_computing
+SK039,gcp,Google Cloud,cloud,gcp|google cloud platform|google cloud,aws|azure|cloud_computing
+SK040,cloud_computing,Cloud computing,cloud,cloud infrastructure|cloud platforms|cloud services|cloud architecture|cloud,aws|azure|gcp
+SK041,linux,Linux,cloud,linux administration|unix|ubuntu|red hat|rhel|command line|linux command line,bash_scripting
+SK042,networking,Networking,cloud,computer networking|tcp/ip|tcp ip|dns|dhcp|routing and switching|lan wan|network fundamentals,network_security|linux
+SK043,terraform,Terraform,cloud,infrastructure as code|iac|hashicorp terraform|cloudformation,docker|cloud_computing
+SK044,docker,Docker,devops,containers|containerization|containerisation|docker compose|dockerfile|docker containers,kubernetes
+SK045,kubernetes,Kubernetes,devops,k8s|container orchestration|helm|eks|aks|gke,docker
+SK046,ci_cd,CI/CD,devops,cicd|ci cd|continuous integration|continuous delivery|continuous deployment|github actions|gitlab ci|jenkins|build pipelines,git|docker
+SK047,git,Git,devops,github|gitlab|version control|source control|bitbucket,ci_cd
+SK048,monitoring,Monitoring and observability,devops,observability|prometheus|grafana|logging and monitoring|application monitoring|datadog|elk stack,linux
+SK049,rest_apis,REST APIs,software_engineering,rest api|restful apis|restful api|api development|web apis|api design|openapi|swagger,fastapi|flask|django
+SK050,fastapi,FastAPI,software_engineering,fast api,flask|django|rest_apis
+SK051,django,Django,software_engineering,django framework|django rest framework|drf,flask|fastapi
+SK052,flask,Flask,software_engineering,flask framework,django|fastapi
+SK053,react,React,software_engineering,reactjs|react.js|react js|react hooks,javascript|html_css
+SK054,html_css,HTML and CSS,software_engineering,html|css|html5|css3|html/css|frontend development|front-end development,javascript|react
+SK055,node_js,Node.js,software_engineering,nodejs|node js|express.js|expressjs,javascript
+SK056,testing,Software testing,software_engineering,unit testing|unit tests|test automation|pytest|tdd|test driven development|integration testing|qa testing|automated testing,ci_cd
+SK057,system_design,System design,software_engineering,software architecture|systems design|scalable systems|distributed systems|microservices|design patterns|solution architecture,rest_apis|cloud_computing
+SK058,oop,Object-oriented programming,software_engineering,oop|object oriented programming|object-oriented design|object oriented design,java|python|csharp
+SK059,agile,Agile and Scrum,software_engineering,agile|scrum|kanban|agile methodologies|sprint planning|agile development,project_management
+SK060,algorithms,Data structures and algorithms,software_engineering,data structures|algorithms|dsa|data structures and algorithms,oop|problem_solving
+SK061,cybersecurity,Cybersecurity,security,cyber security|information security|infosec|security operations|security analysis|owasp|threat analysis,network_security|incident_response
+SK062,network_security,Network security,security,firewalls|firewall|ids/ips|intrusion detection|vpn|network defense,networking|cybersecurity
+SK063,siem,SIEM,security,splunk|qradar|security information and event management|log analysis|elastic security,incident_response|monitoring
+SK064,incident_response,Incident response,security,incident handling|security incident response|digital forensics|threat hunting|dfir,siem|cybersecurity
+SK065,vulnerability_assessment,Vulnerability assessment,security,vulnerability management|vulnerability scanning|nessus|qualys|risk assessment|security audits,penetration_testing|cybersecurity
+SK066,cryptography,Cryptography,security,encryption|pki|public key infrastructure|tls|ssl|hashing,cybersecurity
+SK067,penetration_testing,Penetration testing,security,pentesting|pen testing|ethical hacking|red team|burp suite|metasploit,vulnerability_assessment
+SK068,communication,Communication,professional,written communication|verbal communication|communication skills|presentation skills|technical writing|report writing,project_management
+SK069,problem_solving,Problem solving,professional,analytical thinking|critical thinking|troubleshooting|analytical skills|problem-solving,
+SK070,project_management,Project management,professional,project planning|pmp|prince2|stakeholder management|project coordination|delivery management,agile

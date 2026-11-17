@@ -1,0 +1,4 @@
+profile_id,education,experience_years,interests,skills
+demo-001,BSc Information Technology,0,data and dashboards,Python|SQL|Excel|Power BI|Git
+demo-002,BSc Computer Science,1,infrastructure and automation,Linux|Docker|Git|Bash|AWS
+demo-003,Diploma ICT,0,security,Networking|Linux|Cybersecurity

@@ -1,0 +1,11 @@
+job_id,skill_id
+joa:fx-1,sql
+joa:fx-1,excel
+joa:fx-1,power_bi
+joa:fx-1,python
+joa:fx-2,python
+joa:fx-2,sql
+joa:fx-2,postgresql
+joa:fx-2,docker
+joa:fx-2,airflow
+joa:fx-2,aws

@@ -1,0 +1,2 @@
+# Optional: spaCy PhraseMatcher backend (the regex backend gives identical output)
+spacy>=3.7,<4

@@ -1,0 +1,49 @@
+# Default:     docker compose up --build            -> web UI + API on http://localhost:8000
+# With pipeline: docker compose --profile pipeline up -d db && docker compose --profile pipeline run --rm pipeline
+services:
+  api:
+    build: .
+    image: ujuzify:latest
+    env_file: .env
+    ports: ["8000:8000"]
+    volumes:
+      - feedback:/app/data/feedback
+      - processed:/app/data/processed
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+
+  db:
+    image: postgres:16-alpine
+    profiles: ["pipeline"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ujuzify}
+      POSTGRES_USER: ${POSTGRES_USER:-ujuzify}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pipeline:
+    build: .
+    image: ujuzify:latest
+    profiles: ["pipeline"]
+    env_file: .env
+    command: ["python", "-m", "src.pipeline", "--load-db"]
+    depends_on:
+      db: { condition: service_healthy }
+    volumes:
+      - processed:/app/data/processed
+      - raw:/app/data/raw
+
+volumes:
+  feedback:
+  processed:
+  raw:
+  pgdata:

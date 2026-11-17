@@ -1,0 +1,10 @@
+career_id,career_name,career_family,description,title_keywords
+CA01,Data Analyst,Data,"Turns business data into insight using SQL, spreadsheets and dashboards.",data analyst|business analyst|analytics associate|reporting analyst
+CA02,Business Intelligence Analyst,Data,Builds dashboards and reporting layers that drive decisions.,business intelligence|bi analyst|bi developer|reporting analyst
+CA03,Data Engineer,Data,Designs and operates data pipelines and warehouses.,data engineer|etl developer|analytics engineer|big data engineer
+CA04,Data Scientist,Data,Builds statistical and machine-learning models to answer business questions.,data scientist|research scientist|applied scientist|statistician
+CA05,Machine Learning Engineer,Data,Productionises machine-learning models at scale.,machine learning engineer|ml engineer|ai engineer|mlops engineer
+CA06,Cloud Engineer,Cloud / Infrastructure,"Designs, deploys and operates cloud infrastructure.",cloud engineer|cloud architect|cloud administrator|solutions architect|infrastructure engineer
+CA07,DevOps Engineer,Cloud / Infrastructure,"Automates build, release and operations workflows.",devops|site reliability|sre|platform engineer|release engineer
+CA08,Software Engineer,Software,Builds and maintains reliable software products.,software engineer|software developer|backend developer|full stack|fullstack|web developer|application developer|programmer|frontend developer
+CA09,Cybersecurity Analyst,Security,"Detects, investigates and prevents security threats.",cybersecurity|security analyst|soc analyst|information security|security engineer|penetration tester

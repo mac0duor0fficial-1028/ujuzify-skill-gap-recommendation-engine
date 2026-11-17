@@ -1,0 +1,16 @@
+# Acquisition settings. The core pipeline is API-first: no HTML scraping, no access-control bypass.
+primary_source:
+  source_id: joa
+  name: Job Opportunities API
+  base_url: https://jobopportunitiesapi.org
+  endpoint: /public/jobs
+  country: KE
+  page_param: page
+  limit_param: limit
+  page_size: 100
+  max_pages: 20
+  timeout_seconds: 20
+  results_keys: [data, jobs, results, items]
+secondary_sources:
+  adzuna:
+    enabled: false   # requires app id/key; confirm terms for the intended use before enabling

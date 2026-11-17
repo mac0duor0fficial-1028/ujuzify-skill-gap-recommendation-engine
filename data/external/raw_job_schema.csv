@@ -1,0 +1,22 @@
+field,type,requirement,description
+source_id,string,required,Source registry identifier
+source_job_id,string,required,Original job identifier
+source_url,string,recommended,Canonical listing URL where permitted
+title,string,required,Job title
+company_name,string,optional,Employer name
+location_raw,string,optional,Original location text
+country_code,string,optional,ISO-3166 alpha-2 country code
+city,string,optional,City when confidently resolved
+description_raw,text,required,Raw description or snippet supplied by the source
+employment_type,string,optional,Employment type
+seniority,string,optional,Seniority level
+education_required,string,optional,Education requirement
+experience_required,string,optional,Experience requirement
+salary_min,numeric,optional,Published minimum salary
+salary_max,numeric,optional,Published maximum salary
+currency,string,optional,Salary currency
+posted_at,datetime,optional,Original posting timestamp
+retrieved_at,datetime,required,Timestamp retrieved by the pipeline
+source_category,string,optional,Source category if supplied
+raw_payload_path,string,required,Path to the immutable raw payload
+content_hash,string,required,Hash for deduplication and change detection

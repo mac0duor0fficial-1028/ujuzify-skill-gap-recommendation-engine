@@ -1,0 +1,16 @@
+project_id,title,career_ids,skill_focus,difficulty,estimated_hours,portfolio_value,description
+PR01,Sales dashboard in Power BI,CA01|CA02,power_bi|data_visualization|sql,3,18,5,"Model a public retail dataset in SQL, then publish a three-page Power BI dashboard with KPIs and drill-through."
+PR02,Exploratory analysis report,CA01|CA04,python|pandas|statistics|data_cleaning,2,15,4,"Clean a messy public dataset, test two hypotheses and write up findings with charts."
+PR03,Excel financial model,CA01|CA02,excel|statistics,2,10,3,"Build a forecasting workbook with pivot tables, scenario inputs and a summary sheet."
+PR04,Batch ETL pipeline with Airflow,CA03,python|sql|etl|airflow|postgresql|docker,4,30,5,"Ingest a public API into PostgreSQL daily with an Airflow DAG, validation checks and a Docker Compose setup."
+PR05,Warehouse star schema,CA02|CA03,data_modeling|data_warehousing|sql,3,20,4,Design a star schema for an e-commerce dataset and load it with scripted transformations.
+PR06,Churn prediction model,CA04|CA05,python|machine_learning|scikit_learn|feature_engineering,3,25,5,Train and evaluate a churn classifier with cross-validation and a short model card.
+PR07,Model serving API,CA05,machine_learning|mlops|docker|rest_apis|fastapi,4,30,5,"Wrap a trained model in a FastAPI service, containerise it and track experiments with MLflow."
+PR08,Infrastructure as code starter,CA06|CA07,terraform|aws|linux|networking,3,20,5,"Provision a VPC, subnet and virtual machine with Terraform and document the network layout."
+PR09,CI/CD pipeline for a web app,CA07|CA08,ci_cd|docker|git|testing|kubernetes,3,20,5,"Create a GitHub Actions workflow that tests, builds a container image and deploys to a local cluster."
+PR10,REST API with automated tests,CA08,rest_apis|python|fastapi|testing|sql|oop,3,25,5,Build a documented CRUD API with a relational database and a pytest suite with coverage.
+PR11,Home-lab SOC,CA09,siem|incident_response|networking|linux|cybersecurity,4,30,5,"Collect logs from a small lab, write detection rules in a SIEM and document two simulated incidents."
+PR12,Vulnerability assessment report,CA09,vulnerability_assessment|network_security|penetration_testing|communication,3,20,4,"Scan an intentionally vulnerable lab machine, rank findings and write a remediation report."
+PR13,Real-time events pipeline,CA03,kafka|spark|python|etl,5,35,4,Stream simulated events through Kafka into a processed store and chart live throughput.
+PR14,Monitoring stack,CA06|CA07,monitoring|docker|linux|kubernetes,3,15,4,"Expose metrics from an app, scrape them with Prometheus and build an alerting dashboard."
+PR15,NLP text classifier,CA04|CA05,nlp|python|machine_learning,3,20,4,Classify short texts with TF-IDF and compare against an embedding model.

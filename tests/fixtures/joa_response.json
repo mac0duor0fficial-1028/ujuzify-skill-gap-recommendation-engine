@@ -1,0 +1,67 @@
+{
+ "data": [
+  {
+   "id": "fx-1",
+   "title": "Junior Data Analyst",
+   "company": "Fixture Co Ltd",
+   "location": "Nairobi, Kenya",
+   "country": "KE",
+   "description": "We need SQL,  Excel and Power BI. Python is a plus.",
+   "url": "https://example.test/1"
+  },
+  {
+   "id": "fx-2",
+   "title": "Data Engineer",
+   "company": "Sample Labs",
+   "location": "Nairobi",
+   "country": "KE",
+   "description": "Python, SQL, Postgres, Docker and Apache Airflow. AWS preferred.",
+   "url": "https://example.test/2"
+  },
+  {
+   "id": "fx-2",
+   "title": "Data Engineer",
+   "company": "Sample Labs",
+   "location": "Nairobi",
+   "country": "KE",
+   "description": "Python, SQL, Postgres, Docker and Apache Airflow. AWS preferred.",
+   "url": "https://example.test/2"
+  },
+  {
+   "id": "fx-3",
+   "title": "DevOps Engineer",
+   "company": "Demo Ltd",
+   "location": "Mombasa, Kenya",
+   "country": "KE",
+   "description": "Linux, Docker, Kubernetes, CI/CD, Terraform and AWS.",
+   "url": "https://example.test/3"
+  },
+  {
+   "id": "fx-4",
+   "title": "Cybersecurity Analyst",
+   "company": "Test Secure",
+   "location": "Nairobi",
+   "country": "KE",
+   "description": "SIEM, incident response, networking and vulnerability management.",
+   "url": "https://example.test/4"
+  },
+  {
+   "id": "fx-5",
+   "title": "Marketing Lead",
+   "company": "Elsewhere",
+   "location": "Kampala",
+   "country": "UG",
+   "description": "Brand and campaigns.",
+   "url": "https://example.test/5"
+  },
+  {
+   "id": "fx-6",
+   "title": "Data Engineer",
+   "company": "Sample Labs Inc",
+   "location": "Nairobi",
+   "country": "KE",
+   "description": "Python, SQL, Postgres, Docker and Apache Airflow. AWS preferred.",
+   "url": "https://example.test/6"
+  }
+ ]
+}
